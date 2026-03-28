@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
-import '../main.dart'; // so we can go to MainFarmScreen
+import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart'; // MainFarmScreen
+import 'package:http/http.dart' as http;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,17 +20,72 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   PhoneNumber number = PhoneNumber(isoCode: 'KE');
 
-  void _fakeLogin() {
-    setState(() => _isLoading = true);
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() => _isLoading = false);
-      // Fake success → go to main app
+  // Replace with your API endpoint
+  final String loginUrl = "http://192.168.100.144:8000/api/users/login/";
+
+  void _login() async {
+  if (!_formKey.currentState!.validate()) return;
+
+  setState(() => _isLoading = true);
+
+  try {
+    // Get the phone number from the InternationalPhoneNumberInput
+    String phoneInput = number.phoneNumber ?? '';
+
+    // Clean the phone number - remove '+' and spaces
+    String phoneStr = phoneInput.replaceAll('+', '').replaceAll(' ', '');
+
+    // Ensure it starts with 254 (matching how it's saved in your model)
+    if (phoneStr.startsWith('0')) {
+      phoneStr = '254' + phoneStr.substring(1);
+    }
+
+    print("Sending phone: $phoneStr"); // For debugging
+
+    final response = await http.post(
+      Uri.parse(loginUrl),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "phone_number": phoneStr,     // Must match what Postman used
+        "password": password,
+      }),
+    );
+
+    print("Status: ${response.statusCode}");
+    print("Response: ${response.body}");
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString("access", data['access']);
+      await prefs.setString("refresh", data['refresh']);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Login successful!")),
+      );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainFarmScreen()),
       );
-    });
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Login failed: Invalid phone or password")),
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Connection error: $e")),
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/images/farm_logo.png', height: 100), // ← add later
+                Image.asset('assets/images/farm_logo.png', height: 100),
                 const SizedBox(height: 40),
                 Text(
                   "Welcome back to FreshFarm",
@@ -63,9 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: InternationalPhoneNumberInput(
-                    onInputChanged: (PhoneNumber num) {
-                      number = num;
-                    },
+                    onInputChanged: (PhoneNumber num) => number = num,
                     selectorConfig: const SelectorConfig(
                       selectorType: PhoneInputSelectorType.BOTTOM_SHEET,
                       setSelectorButtonAsPrefixIcon: true,
@@ -84,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Password field (we'll keep simple password for now – no OTP yet)
+                // Password field
                 TextFormField(
                   obscureText: true,
                   decoration: InputDecoration(
@@ -98,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 30),
 
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _fakeLogin,
+                  onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -116,7 +172,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text("New here? ", style: GoogleFonts.poppins(color: Colors.grey[700])),
                     TextButton(
                       onPressed: () {
-                        // TODO: go to register screen later
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text("Register coming soon!")),
                         );

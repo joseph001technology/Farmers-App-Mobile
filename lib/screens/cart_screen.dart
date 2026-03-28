@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 
@@ -12,33 +11,31 @@ class CartScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("My Cart", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        centerTitle: true,
+        title: const Text("My Cart"),
       ),
-      body: cart.isEmpty
-          ? const Center(
-              child: Text("🛒 Your cart is empty"),
-            )
+      body: cart.items.isEmpty
+          ? const Center(child: Text("Your cart is empty 🛒"))
           : Column(
               children: [
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: cart.items.length,
-                    itemBuilder: (context, index) {
-                      final item = cart.items[index];
-
+                  child: ListView(
+                    children: cart.items.values.map((item) {
                       return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         child: ListTile(
-                          leading: Image.network(
-                            item.product.imageUrl,
-                            width: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(Icons.image),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              item.product.imageUrl ?? '',
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                           title: Text(item.product.name),
                           subtitle: Text(
-                            "KSh ${item.product.price.toStringAsFixed(0)} x ${item.quantity}",
+                            "KSh ${item.product.price} x ${item.quantity}",
                           ),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -48,62 +45,57 @@ class CartScreen extends StatelessWidget {
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.remove),
-                                    onPressed: () => cart.decreaseQty(item.product.id),
+                                    onPressed: () => cart
+                                        .decreaseQty(item.product.id),
                                   ),
-                                  Text("${item.quantity}"),
+                                  Text(item.quantity.toString()),
                                   IconButton(
                                     icon: const Icon(Icons.add),
-                                    onPressed: () => cart.increaseQty(item.product.id),
+                                    onPressed: () => cart
+                                        .increaseQty(item.product.id),
                                   ),
                                 ],
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.red),
+                                onPressed: () =>
+                                    cart.removeItem(item.product.id),
                               ),
                             ],
                           ),
                         ),
                       );
-                    },
+                    }).toList(),
                   ),
                 ),
 
-                // TOTAL + CHECKOUT
+                // 🔥 TOTAL SECTION
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(color: Colors.black12, blurRadius: 5),
-                    ],
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Colors.black12)),
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Total:", style: GoogleFonts.poppins(fontSize: 18)),
-                          Text(
-                            "KSh ${cart.totalPrice.toStringAsFixed(0)}",
-                            style: GoogleFonts.poppins(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[800],
-                            ),
-                          ),
-                        ],
+                      Text(
+                        "Total: KSh ${cart.totalPrice.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
-                        height: 50,
                         child: ElevatedButton(
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Checkout coming soon 🚀")),
+                              const SnackBar(
+                                content:
+                                    Text("Checkout coming soon 🚀"),
+                              ),
                             );
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green[700],
-                          ),
-                          child: const Text("Checkout", style: TextStyle(color: Colors.white)),
+                          child: const Text("Checkout"),
                         ),
                       ),
                     ],
