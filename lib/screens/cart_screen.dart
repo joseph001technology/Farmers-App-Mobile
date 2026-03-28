@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../services/api_service.dart';
+import 'orders_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
@@ -70,7 +73,7 @@ class CartScreen extends StatelessWidget {
                   ),
                 ),
 
-                // 🔥 TOTAL SECTION
+                // 🔥 TOTAL + CHECKOUT
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
@@ -84,16 +87,54 @@ class CartScreen extends StatelessWidget {
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
+
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text("Checkout coming soon 🚀"),
-                              ),
-                            );
+                          onPressed: () async {
+                            final cart = Provider.of<CartProvider>(context,
+                                listen: false);
+
+                            final items = cart.items.values.map((item) {
+                              return {
+                                "product": item.product.id,
+                                "quantity": item.quantity,
+                              };
+                            }).toList();
+
+                            try {
+                              final response =
+                                  await ApiService.post("/orders/", {
+                                "items": items, // ✅ CORRECT KEY
+                              });
+
+                              if (response.statusCode == 201 ||
+                                  response.statusCode == 200) {
+                                cart.clearCart();
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text("Order placed 🎉")),
+                                );
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const OrdersScreen(),
+                                  ),
+                                );
+                              } else {
+                                final error = jsonDecode(response.body);
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(error.toString())),
+                                );
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error: $e")),
+                              );
+                            }
                           },
                           child: const Text("Checkout"),
                         ),

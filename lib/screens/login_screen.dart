@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../main.dart'; // MainFarmScreen
 import 'package:http/http.dart' as http;
+
+import '../main.dart';
+import '../services/auth_service.dart'; // ✅ ADD THIS
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,168 +17,211 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  String phone = '';
   String password = '';
   bool _isLoading = false;
   PhoneNumber number = PhoneNumber(isoCode: 'KE');
 
-  // Replace with your API endpoint
-  final String loginUrl = "http://192.168.100.144:8000/api/users/login/";
+  final String loginUrl =
+      "http://192.168.100.144:8000/api/users/login/";
 
   void _login() async {
-  if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return;
 
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  try {
-    // Get the phone number from the InternationalPhoneNumberInput
-    String phoneInput = number.phoneNumber ?? '';
+    try {
+      String phoneInput = number.phoneNumber ?? '';
 
-    // Clean the phone number - remove '+' and spaces
-    String phoneStr = phoneInput.replaceAll('+', '').replaceAll(' ', '');
+      String phoneStr =
+          phoneInput.replaceAll('+', '').replaceAll(' ', '');
 
-    // Ensure it starts with 254 (matching how it's saved in your model)
-    if (phoneStr.startsWith('0')) {
-      phoneStr = '254' + phoneStr.substring(1);
-    }
+      if (phoneStr.startsWith('0')) {
+        phoneStr = '254' + phoneStr.substring(1);
+      }
 
-    print("Sending phone: $phoneStr"); // For debugging
+      final response = await http.post(
+        Uri.parse(loginUrl),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "phone_number": phoneStr,
+          "password": password,
+        }),
+      );
 
-    final response = await http.post(
-      Uri.parse(loginUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "phone_number": phoneStr,     // Must match what Postman used
-        "password": password,
-      }),
-    );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final prefs = await SharedPreferences.getInstance();
 
-    print("Status: ${response.statusCode}");
-    print("Response: ${response.body}");
+        // ✅ STORE TOKENS LOCALLY
+        await prefs.setString("access", data['access']);
+        await prefs.setString("refresh", data['refresh']);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final prefs = await SharedPreferences.getInstance();
+        // 🔥 VERY IMPORTANT: SET TOKEN FOR API CALLS
+        AuthService.setToken(data['access']);
 
-      await prefs.setString("access", data['access']);
-      await prefs.setString("refresh", data['refresh']);
+        if (!mounted) return;
 
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login successful!")),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (_) => const MainFarmScreen()),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Invalid phone or password")),
+        );
+      }
+    } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login successful!")),
+        SnackBar(content: Text("Connection error: $e")),
       );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainFarmScreen()),
-      );
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Login failed: Invalid phone or password")),
-      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Connection error: $e")),
-    );
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
   }
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24.0),
           child: Form(
             key: _formKey,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/images/farm_logo.png', height: 100),
-                const SizedBox(height: 40),
-                Text(
-                  "Welcome back to FreshFarm",
-                  style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Login with your phone number",
-                  style: GoogleFonts.poppins(color: Colors.grey[700]),
-                  textAlign: TextAlign.center,
-                ),
+                Image.asset('assets/images/farm_logo.png',
+                    height: 100),
                 const SizedBox(height: 40),
 
-                // Phone field
+                Text(
+                  "Welcome back to FreshFarm",
+                  style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  "Login with your phone number",
+                  style: GoogleFonts.poppins(
+                      color: Colors.grey[700]),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 40),
+
+                // 📱 PHONE INPUT
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.green.shade300),
-                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: Colors.green.shade300),
+                    borderRadius:
+                        BorderRadius.circular(12),
                   ),
                   child: InternationalPhoneNumberInput(
-                    onInputChanged: (PhoneNumber num) => number = num,
+                    onInputChanged: (PhoneNumber num) =>
+                        number = num,
                     selectorConfig: const SelectorConfig(
-                      selectorType: PhoneInputSelectorType.BOTTOM_SHEET,
-                      setSelectorButtonAsPrefixIcon: true,
+                      selectorType:
+                          PhoneInputSelectorType.BOTTOM_SHEET,
+                      setSelectorButtonAsPrefixIcon:
+                          true,
                     ),
                     initialValue: number,
-                    textFieldController: TextEditingController(),
+                    textFieldController:
+                        TextEditingController(),
                     formatInput: true,
                     keyboardType: TextInputType.phone,
                     inputDecoration: InputDecoration(
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding:
+                          const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16),
                       hintText: "712 345 678",
-                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      hintStyle: TextStyle(
+                          color: Colors.grey[400]),
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 20),
 
-                // Password field
+                // 🔐 PASSWORD
                 TextFormField(
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: "Password",
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.lock_outline),
+                    border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(12)),
+                    prefixIcon:
+                        const Icon(Icons.lock_outline),
                   ),
-                  validator: (val) => val!.length < 6 ? "Too short" : null,
+                  validator: (val) =>
+                      val!.length < 6 ? "Too short" : null,
                   onChanged: (val) => password = val,
                 ),
+
                 const SizedBox(height: 30),
 
                 ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding:
+                        const EdgeInsets.symmetric(
+                            vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(12)),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Login", style: TextStyle(fontSize: 18, color: Colors.white)),
+                      ? const CircularProgressIndicator(
+                          color: Colors.white)
+                      : const Text(
+                          "Login",
+                          style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white),
+                        ),
                 ),
 
                 const SizedBox(height: 20),
+
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
                   children: [
-                    Text("New here? ", style: GoogleFonts.poppins(color: Colors.grey[700])),
+                    Text("New here? ",
+                        style: GoogleFonts.poppins(
+                            color: Colors.grey[700])),
                     TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Register coming soon!")),
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  "Register coming soon!")),
                         );
                       },
-                      child: const Text("Create account"),
+                      child: const Text(
+                          "Create account"),
                     ),
                   ],
                 ),
