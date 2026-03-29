@@ -20,9 +20,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String password = '';
   bool _isLoading = false;
   PhoneNumber number = PhoneNumber(isoCode: 'KE');
-
-  final String loginUrl =
-      "http://192.168.100.144:8000/api/users/login/";
+final String loginUrl =
+    "https://josephkiarie2.pythonanywhere.com/api/users/login/";
 
   void _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -57,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString("refresh", data['refresh']);
 
         // 🔥 VERY IMPORTANT: SET TOKEN FOR API CALLS
-        AuthService.setToken(data['access']);
+        AuthService.accessToken = data['access'];
 
         if (!mounted) return;
 

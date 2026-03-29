@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../models/product.dart';
+import '../providers/cart_provider.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final Product product;
@@ -9,6 +11,8 @@ class ProductDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cart = Provider.of<CartProvider>(context, listen: false);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(product.name, style: GoogleFonts.poppins()),
@@ -22,10 +26,12 @@ class ProductDetailScreen extends StatelessWidget {
               height: 300,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
+              errorBuilder: (context, error, stackTrace) => Container(
                 height: 300,
                 color: Colors.green[100],
-                child: const Center(child: Icon(Icons.image, size: 100, color: Colors.green)),
+                child: const Center(
+                  child: Icon(Icons.image, size: 100, color: Colors.green),
+                ),
               ),
             ),
             Padding(
@@ -35,17 +41,22 @@ class ProductDetailScreen extends StatelessWidget {
                 children: [
                   Text(
                     product.name,
-                    style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.poppins(
+                        fontSize: 26, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "KSh ${product.price.toStringAsFixed(0)} ${product.unit}",
-                    style: GoogleFonts.poppins(fontSize: 22, color: Colors.green[800], fontWeight: FontWeight.bold),
+                    "KSh ${product.price.toStringAsFixed(0)} ${product.unit ?? ''}",
+                    style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        color: Colors.green[800],
+                        fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     "Description",
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.poppins(
+                        fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -58,16 +69,21 @@ class ProductDetailScreen extends StatelessWidget {
                     height: 54,
                     child: ElevatedButton.icon(
                       onPressed: () {
+                        cart.addToCart(product);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("${product.name} added to cart! 🛒")),
+                          SnackBar(
+                            content: Text("${product.name} added to cart! 🛒"),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.add_shopping_cart),
-                      label: const Text("Add to Cart", style: TextStyle(fontSize: 18)),
+                      label: const Text("Add to Cart",
+                          style: TextStyle(fontSize: 18)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green[700],
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),

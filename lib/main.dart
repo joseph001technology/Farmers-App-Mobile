@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'providers/cart_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/products_screen.dart';
-import 'package:provider/provider.dart';
-import 'providers/cart_provider.dart';
 import 'screens/cart_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/orders_screen.dart';
 
 void main() {
   runApp(
@@ -23,11 +24,11 @@ class MyFarmApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FreshFarm • Joseph\'s Organic Farm',
+      title: 'FreshFarm',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.green,
-        scaffoldBackgroundColor: const Color(0xFFF5F9F0), // soft farm green
+        scaffoldBackgroundColor: const Color(0xFFF5F9F0),
         textTheme: GoogleFonts.poppinsTextTheme(),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
@@ -54,10 +55,8 @@ class _MainFarmScreenState extends State<MainFarmScreen> {
     const HomeScreen(),
     const ProductsScreen(),
     const CartScreen(),
+    const OrdersScreen(),
     const ProfileScreen(),
-    const Placeholder(color: Colors.orange, child: Center(child: Text("🛍️ Products (coming next)"))),
-    const Placeholder(color: Colors.blue, child: Center(child: Text("🛒 Cart (coming next)"))),
-    const Placeholder(color: Colors.purple, child: Center(child: Text("👤 Login / Profile"))),
   ];
 
   @override
@@ -74,6 +73,7 @@ class _MainFarmScreenState extends State<MainFarmScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Orders'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Me'),
         ],
       ),
