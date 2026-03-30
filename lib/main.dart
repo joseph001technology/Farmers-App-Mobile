@@ -8,8 +8,11 @@ import 'screens/products_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/orders_screen.dart';
+import 'services/auth_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AuthService.loadSavedData();
   runApp(
     ChangeNotifierProvider(
       create: (_) => CartProvider(),
@@ -36,7 +39,7 @@ class MyFarmApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Colors.green),
         ),
       ),
-      home: const LoginScreen(),
+      home: AuthService.isLoggedIn() ? const MainFarmScreen() : const LoginScreen(),
     );
   }
 }

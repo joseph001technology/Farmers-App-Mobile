@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
 import '../main.dart';
-import '../services/auth_service.dart'; // ✅ ADD THIS
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,8 +20,9 @@ class _LoginScreenState extends State<LoginScreen> {
   String password = '';
   bool _isLoading = false;
   PhoneNumber number = PhoneNumber(isoCode: 'KE');
-final String loginUrl =
-    "https://josephkiarie2.pythonanywhere.com/api/users/login/";
+
+  final String loginUrl =
+      "https://josephkiarie2.pythonanywhere.com/api/users/login/";
 
   void _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -30,7 +31,6 @@ final String loginUrl =
 
     try {
       String phoneInput = number.phoneNumber ?? '';
-
       String phoneStr =
           phoneInput.replaceAll('+', '').replaceAll(' ', '');
 
@@ -51,12 +51,19 @@ final String loginUrl =
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
 
-        // ✅ STORE TOKENS LOCALLY
+        // ✅ SAVE EVERYTHING to SharedPreferences
         await prefs.setString("access", data['access']);
         await prefs.setString("refresh", data['refresh']);
+        await prefs.setString("username", data['username'] ?? '');
+        await prefs.setString("phoneNumber", data['phone_number'] ?? '');
+        await prefs.setString("role", data['role'] ?? '');
 
-        // 🔥 VERY IMPORTANT: SET TOKEN FOR API CALLS
+        // ✅ SET IN AuthService for current session
         AuthService.accessToken = data['access'];
+        AuthService.refreshToken = data['refresh'];
+        AuthService.username = data['username'];
+        AuthService.phoneNumber = data['phone_number'];
+        AuthService.role = data['role'];
 
         if (!mounted) return;
 
@@ -66,14 +73,12 @@ final String loginUrl =
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-              builder: (_) => const MainFarmScreen()),
+          MaterialPageRoute(builder: (_) => const MainFarmScreen()),
         );
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Invalid phone or password")),
+          const SnackBar(content: Text("Invalid phone or password")),
         );
       }
     } catch (e) {
@@ -91,25 +96,20 @@ final String loginUrl =
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Form(
             key: _formKey,
             child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/images/farm_logo.png',
-                    height: 100),
+                Image.asset('assets/images/farm_logo.png', height: 100),
                 const SizedBox(height: 40),
 
                 Text(
                   "Welcome back to FreshFarm",
                   style: GoogleFonts.poppins(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold),
+                      fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
 
@@ -117,8 +117,7 @@ final String loginUrl =
 
                 Text(
                   "Login with your phone number",
-                  style: GoogleFonts.poppins(
-                      color: Colors.grey[700]),
+                  style: GoogleFonts.poppins(color: Colors.grey[700]),
                   textAlign: TextAlign.center,
                 ),
 
@@ -127,34 +126,26 @@ final String loginUrl =
                 // 📱 PHONE INPUT
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(
-                        color: Colors.green.shade300),
-                    borderRadius:
-                        BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade300),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: InternationalPhoneNumberInput(
-                    onInputChanged: (PhoneNumber num) =>
-                        number = num,
+                    onInputChanged: (PhoneNumber num) => number = num,
                     selectorConfig: const SelectorConfig(
                       selectorType:
                           PhoneInputSelectorType.BOTTOM_SHEET,
-                      setSelectorButtonAsPrefixIcon:
-                          true,
+                      setSelectorButtonAsPrefixIcon: true,
                     ),
                     initialValue: number,
-                    textFieldController:
-                        TextEditingController(),
+                    textFieldController: TextEditingController(),
                     formatInput: true,
                     keyboardType: TextInputType.phone,
                     inputDecoration: InputDecoration(
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                       hintText: "712 345 678",
-                      hintStyle: TextStyle(
-                          color: Colors.grey[400]),
+                      hintStyle: TextStyle(color: Colors.grey[400]),
                     ),
                   ),
                 ),
@@ -167,10 +158,8 @@ final String loginUrl =
                   decoration: InputDecoration(
                     labelText: "Password",
                     border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(12)),
-                    prefixIcon:
-                        const Icon(Icons.lock_outline),
+                        borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: const Icon(Icons.lock_outline),
                   ),
                   validator: (val) =>
                       val!.length < 6 ? "Too short" : null,
@@ -183,12 +172,9 @@ final String loginUrl =
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
-                    padding:
-                        const EdgeInsets.symmetric(
-                            vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(
@@ -196,31 +182,26 @@ final String loginUrl =
                       : const Text(
                           "Login",
                           style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.white),
+                              fontSize: 18, color: Colors.white),
                         ),
                 ),
 
                 const SizedBox(height: 20),
 
                 Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text("New here? ",
                         style: GoogleFonts.poppins(
                             color: Colors.grey[700])),
                     TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                              content: Text(
-                                  "Register coming soon!")),
+                              content: Text("Register coming soon!")),
                         );
                       },
-                      child: const Text(
-                          "Create account"),
+                      child: const Text("Create account"),
                     ),
                   ],
                 ),

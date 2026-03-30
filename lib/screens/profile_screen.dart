@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
 import 'login_screen.dart';
@@ -32,7 +33,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> loadProfile() async {
     try {
       final response = await http.get(
-        Uri.parse("https://josephkiarie2.pythonanywhere.com/api/users/profile/"),
+        Uri.parse(
+            "https://josephkiarie2.pythonanywhere.com/api/users/profile/"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer ${AuthService.getToken()}",
@@ -41,20 +43,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final profile = data['profile'] ?? {};
+
+        // Save photo to SharedPreferences and AuthService
+        final prefs = await SharedPreferences.getInstance();
+        if (profile['profile_photo'] != null &&
+            profile['profile_photo'].toString().isNotEmpty) {
+          await prefs.setString('profilePhoto', profile['profile_photo']);
+          AuthService.profilePhoto = profile['profile_photo'];
+        }
 
         setState(() {
-          profilePhoto = data['profile_photo'];
-          location = data['location'];
-          bio = data['bio'];
-          farmSize = data['farm_size']?.toString();
+          profilePhoto = profile['profile_photo'];
+          location = profile['location'];
+          bio = profile['bio'];
+          farmSize = profile['farm_size']?.toString();
           isLoading = false;
         });
       } else {
-        print("Profile error: ${response.body}");
         setState(() => isLoading = false);
       }
     } catch (e) {
-      print("Error loading profile: $e");
       setState(() => isLoading = false);
     }
   }
@@ -65,14 +74,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final phone = AuthService.phoneNumber ?? "";
     final role = AuthService.role ?? "";
 
-    // Fix for relative image URL
-    final fullImageUrl = (profilePhoto != null && profilePhoto!.isNotEmpty)
-        ? "https://josephkiarie2.pythonanywhere.com$profilePhoto"
-        : null;
+    // Handle both relative and absolute URLs
+    String? fullImageUrl;
+    if (profilePhoto != null && profilePhoto!.isNotEmpty) {
+      fullImageUrl = profilePhoto!.startsWith('http')
+          ? profilePhoto!
+          : 'https://josephkiarie2.pythonanywhere.com$profilePhoto';
+    }
 
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator(color: Colors.green)),
       );
     }
 
@@ -132,30 +144,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Extra profile details
             if (location != null && location!.isNotEmpty)
-              Text("📍 $location",
-                  style: GoogleFonts.poppins(color: Colors.grey[700])),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text("📍 $location",
+                    style: GoogleFonts.poppins(color: Colors.grey[700])),
+              ),
 
             if (bio != null && bio!.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 child: Text(
                   bio!,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(),
+                  style: GoogleFonts.poppins(
+                      color: Colors.grey[600], fontSize: 13),
                 ),
               ),
 
             if (farmSize != null && farmSize!.isNotEmpty)
-              Text("🌾 Farm Size: $farmSize acres",
-                  style: GoogleFonts.poppins()),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text("🌾 Farm Size: $farmSize acres",
+                    style: GoogleFonts.poppins(color: Colors.grey[700])),
+              ),
 
             const SizedBox(height: 20),
 
-            // EDIT PROFILE
+            // Edit Profile
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
@@ -164,22 +183,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.edit, color: Colors.green),
                   title: Text("Edit Profile",
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                  subtitle: const Text("Update your information and photo"),
+                      style:
+                          GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+                  subtitle:
+                      const Text("Update your information and photo"),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () async {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const ProfileEditScreen()),
+                        builder: (_) => ProfileEditScreen(
+                          currentUsername: AuthService.username ?? '',
+                          currentBio: bio ?? '',
+                          currentLocation: location ?? '',
+                          currentFarmSize: farmSize ?? '',
+                          currentEmail: '',
+                        ),
+                      ),
                     );
-                    loadProfile(); // 🔥 refresh after editing
+                    loadProfile();
                   },
                 ),
               ),
             ),
 
-            // OTHER TILES
+            // Other tiles
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
@@ -190,7 +218,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     "View your past orders",
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const OrdersScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const OrdersScreen()),
                     ),
                   ),
                   _buildTile(
@@ -217,18 +246,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 30),
 
-            // LOGOUT
+            // Logout
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    AuthService.logout();
+                  onPressed: () async {
+                    await AuthService.logout();
+                    if (!context.mounted) return;
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const LoginScreen()),
                       (route) => false,
                     );
                   },
@@ -255,7 +286,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       {required VoidCallback onTap}) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Icon(icon, color: Colors.green[700]),
         title: Text(title,
