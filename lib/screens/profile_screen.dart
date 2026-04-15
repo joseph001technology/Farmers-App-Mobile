@@ -18,7 +18,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isLoading = true;
-
   String? profilePhoto;
   String? location;
   String? bio;
@@ -45,7 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final data = jsonDecode(response.body);
         final profile = data['profile'] ?? {};
 
-        // Save photo to SharedPreferences and AuthService
         final prefs = await SharedPreferences.getInstance();
         if (profile['profile_photo'] != null &&
             profile['profile_photo'].toString().isNotEmpty) {
@@ -74,7 +72,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final phone = AuthService.phoneNumber ?? "";
     final role = AuthService.role ?? "";
 
-    // Handle both relative and absolute URLs
     String? fullImageUrl;
     if (profilePhoto != null && profilePhoto!.isNotEmpty) {
       fullImageUrl = profilePhoto!.startsWith('http')
@@ -89,133 +86,219 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text("My Profile",
-            style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-      ),
+      backgroundColor: const Color(0xFFF5F9F0),
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // 🔥 Green gradient header
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green[800]!, Colors.green[500]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                  child: Column(
+                    children: [
+                      // Edit button top right
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ProfileEditScreen(
+                                  currentUsername: AuthService.username ?? '',
+                                  currentBio: bio ?? '',
+                                  currentLocation: location ?? '',
+                                  currentFarmSize: farmSize ?? '',
+                                  currentEmail: '',
+                                ),
+                              ),
+                            );
+                            loadProfile();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.edit,
+                                    color: Colors.white, size: 14),
+                                const SizedBox(width: 4),
+                                Text("Edit",
+                                    style: GoogleFonts.poppins(
+                                        color: Colors.white, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Profile photo
+                      Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                )
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 50,
+                              backgroundColor: Colors.green[300],
+                              backgroundImage: fullImageUrl != null
+                                  ? NetworkImage(fullImageUrl)
+                                  : null,
+                              child: fullImageUrl == null
+                                  ? const Icon(Icons.person,
+                                      size: 60, color: Colors.white)
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Text(
+                        username,
+                        style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        phone,
+                        style: GoogleFonts.poppins(
+                            color: Colors.white70, fontSize: 13),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Role badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.4)),
+                        ),
+                        child: Text(
+                          role.toUpperCase(),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 20),
 
-            // Profile Image
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.green[200],
-              backgroundImage:
-                  fullImageUrl != null ? NetworkImage(fullImageUrl) : null,
-              child: fullImageUrl == null
-                  ? const Icon(Icons.person, size: 60, color: Colors.white)
-                  : null,
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              username,
-              style: GoogleFonts.poppins(
-                  fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 4),
-
-            Text(
-              phone,
-              style: GoogleFonts.poppins(color: Colors.grey[700]),
-            ),
-
-            const SizedBox(height: 4),
-
-            // Role badge
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green[100],
-                borderRadius: BorderRadius.circular(20),
+            // 🔥 Bio/location/farmsize card
+            if ((bio != null && bio!.isNotEmpty) ||
+                (location != null && location!.isNotEmpty) ||
+                (farmSize != null && farmSize!.isNotEmpty))
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("About",
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors.green[800])),
+                      const SizedBox(height: 10),
+                      if (location != null && location!.isNotEmpty)
+                        _infoRow("📍", location!),
+                      if (farmSize != null && farmSize!.isNotEmpty)
+                        _infoRow("🌾", "Farm Size: $farmSize acres"),
+                      if (bio != null && bio!.isNotEmpty)
+                        _infoRow("💬", bio!),
+                    ],
+                  ),
+                ),
               ),
-              child: Text(
-                role.toUpperCase(),
-                style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.green[800],
-                    fontWeight: FontWeight.w600),
+
+            const SizedBox(height: 16),
+
+            // 🔥 Quick stats row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  _statCard("🛒", "Orders", "View all"),
+                  const SizedBox(width: 10),
+                  _statCard("📍", "Location", location ?? "Not set"),
+                  const SizedBox(width: 10),
+                  _statCard("🌾", "Farm", "${farmSize ?? '?'} acres"),
+                ],
               ),
             ),
 
             const SizedBox(height: 16),
 
-            if (location != null && location!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text("📍 $location",
-                    style: GoogleFonts.poppins(color: Colors.grey[700])),
-              ),
-
-            if (bio != null && bio!.isNotEmpty)
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Text(
-                  bio!,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                      color: Colors.grey[600], fontSize: 13),
-                ),
-              ),
-
-            if (farmSize != null && farmSize!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text("🌾 Farm Size: $farmSize acres",
-                    style: GoogleFonts.poppins(color: Colors.grey[700])),
-              ),
-
-            const SizedBox(height: 20),
-
-            // Edit Profile
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                child: ListTile(
-                  leading: const Icon(Icons.edit, color: Colors.green),
-                  title: Text("Edit Profile",
-                      style:
-                          GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                  subtitle:
-                      const Text("Update your information and photo"),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProfileEditScreen(
-                          currentUsername: AuthService.username ?? '',
-                          currentBio: bio ?? '',
-                          currentLocation: location ?? '',
-                          currentFarmSize: farmSize ?? '',
-                          currentEmail: '',
-                        ),
-                      ),
-                    );
-                    loadProfile();
-                  },
-                ),
-              ),
-            ),
-
-            // Other tiles
+            // 🔥 Menu tiles
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   _buildTile(
-                    Icons.shopping_bag,
+                    Icons.shopping_bag_outlined,
                     "My Orders",
                     "View your past orders",
+                    color: Colors.orange,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -223,28 +306,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   _buildTile(
-                    Icons.location_on,
+                    Icons.location_on_outlined,
                     "Delivery Location",
                     location ?? "Not set",
+                    color: Colors.blue,
                     onTap: () {},
                   ),
                   _buildTile(
-                    Icons.payment,
+                    Icons.payment_outlined,
                     "Payment Methods",
                     "M-Pesa / Card (coming soon)",
+                    color: Colors.purple,
                     onTap: () {},
                   ),
                   _buildTile(
-                    Icons.settings,
+                    Icons.settings_outlined,
                     "Settings",
                     "App preferences",
+                    color: Colors.grey,
                     onTap: () {},
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
 
             // Logout
             Padding(
@@ -264,7 +350,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     );
                   },
                   icon: const Icon(Icons.logout),
-                  label: const Text("Logout"),
+                  label: Text("Logout",
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[400],
                     foregroundColor: Colors.white,
@@ -282,18 +370,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _infoRow(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: GoogleFonts.poppins(
+                    fontSize: 13, color: Colors.grey[700])),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statCard(String emoji, String title, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            )
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 4),
+            Text(title,
+                style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800])),
+            Text(value,
+                style: GoogleFonts.poppins(
+                    fontSize: 10, color: Colors.grey[500]),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTile(IconData icon, String title, String subtitle,
-      {required VoidCallback onTap}) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      {required VoidCallback onTap, Color color = Colors.green}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
       child: ListTile(
-        leading: Icon(icon, color: Colors.green[700]),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
         title: Text(title,
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600, fontSize: 14)),
+        subtitle: Text(subtitle,
+            style:
+                GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
+        trailing: const Icon(Icons.arrow_forward_ios,
+            size: 14, color: Colors.grey),
         onTap: onTap,
       ),
     );

@@ -9,6 +9,7 @@ import 'screens/cart_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/orders_screen.dart';
 import 'services/auth_service.dart';
+import 'services/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,7 @@ class MyFarmApp extends StatelessWidget {
     return MaterialApp(
       title: 'FreshFarm',
       debugShowCheckedModeBanner: false,
+      navigatorKey: ApiService.navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.green,
         scaffoldBackgroundColor: const Color(0xFFF5F9F0),
@@ -39,7 +41,9 @@ class MyFarmApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Colors.green),
         ),
       ),
-      home: AuthService.isLoggedIn() ? const MainFarmScreen() : const LoginScreen(),
+      home: AuthService.isLoggedIn()
+          ? const MainFarmScreen()
+          : const LoginScreen(),
     );
   }
 }
@@ -75,7 +79,8 @@ class _MainFarmScreenState extends State<MainFarmScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart), label: 'Cart'),
           BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Orders'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Me'),
         ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../models/order.dart';
+import 'payment_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -184,11 +185,16 @@ class _OrdersScreenState extends State<OrdersScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _summaryItem("Total", "${orders.length}", Icons.receipt_long),
+                          _summaryItem("Total", "${orders.length}",
+                              Icons.receipt_long),
                           _divider(),
-                          _summaryItem("Pending", "${pending.length}", Icons.access_time, color: Colors.orange[200]!),
+                          _summaryItem("Pending", "${pending.length}",
+                              Icons.access_time,
+                              color: Colors.orange[200]!),
                           _divider(),
-                          _summaryItem("Paid", "${paid.length}", Icons.check_circle, color: Colors.greenAccent),
+                          _summaryItem("Paid", "${paid.length}",
+                              Icons.check_circle,
+                              color: Colors.greenAccent),
                         ],
                       ),
                     ),
@@ -201,7 +207,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                            _buildList(pending),
+                            _buildList(pending, showPayButton: true),
                             _buildList(paid),
                             _buildList(delivered),
                           ],
@@ -225,8 +231,8 @@ class _OrdersScreenState extends State<OrdersScreen>
                 fontSize: 22,
                 fontWeight: FontWeight.bold)),
         Text(label,
-            style:
-                GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+            style: GoogleFonts.poppins(
+                color: Colors.white70, fontSize: 12)),
       ],
     );
   }
@@ -235,7 +241,7 @@ class _OrdersScreenState extends State<OrdersScreen>
     return Container(height: 40, width: 1, color: Colors.white24);
   }
 
-  Widget _buildList(List<Order> list) {
+  Widget _buildList(List<Order> list, {bool showPayButton = false}) {
     if (list.isEmpty) {
       return Center(
         child: Column(
@@ -273,67 +279,112 @@ class _OrdersScreenState extends State<OrdersScreen>
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
               children: [
-                // Status icon
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(_statusIcon(order.status),
-                      color: color, size: 28),
-                ),
-                const SizedBox(width: 14),
-
-                // Details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Order #${order.id}",
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w700, fontSize: 15)),
-                      const SizedBox(height: 4),
-                      Text(_formatDate(order.createdAt),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: Colors.grey[500])),
-                    ],
-                  ),
-                ),
-
-                // Price + status badge
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
                   children: [
-                    Text(
-                      "KSh ${order.totalPrice.toStringAsFixed(0)}",
-                      style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: Colors.green[800]),
-                    ),
-                    const SizedBox(height: 4),
+                    // Status icon
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
                         color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: color.withOpacity(0.4)),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Text(
-                        _statusLabel(order.status),
-                        style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: color,
-                            fontWeight: FontWeight.w600),
+                      child: Icon(_statusIcon(order.status),
+                          color: color, size: 28),
+                    ),
+                    const SizedBox(width: 14),
+
+                    // Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Order #${order.id}",
+                              style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15)),
+                          const SizedBox(height: 4),
+                          Text(_formatDate(order.createdAt),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey[500])),
+                        ],
                       ),
+                    ),
+
+                    // Price + status badge
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          "KSh ${order.totalPrice.toStringAsFixed(0)}",
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors.green[800]),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border:
+                                Border.all(color: color.withOpacity(0.4)),
+                          ),
+                          child: Text(
+                            _statusLabel(order.status),
+                            style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                color: color,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+
+                // 🔥 Pay button for pending orders
+                if (showPayButton) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PaymentScreen(
+                              orderId: order.id,
+                              totalPrice: order.totalPrice,
+                            ),
+                          ),
+                        );
+                        // Refresh orders after payment
+                        fetchOrders();
+                      },
+                      icon: const Text("📱",
+                          style: TextStyle(fontSize: 16)),
+                      label: Text(
+                        "Pay KSh ${order.totalPrice.toStringAsFixed(0)} via M-Pesa",
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

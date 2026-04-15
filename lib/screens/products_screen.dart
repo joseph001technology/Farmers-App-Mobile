@@ -18,6 +18,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<Product> products = [];
   bool isLoading = true;
   String errorMessage = '';
+  String selectedCategory = 'All';
+
+  final List<Map<String, String>> categories = [
+    {'label': 'All', 'emoji': '🌿'},
+    {'label': 'Vegetables', 'emoji': '🥬'},
+    {'label': 'Fruits', 'emoji': '🍎'},
+    {'label': 'Grains', 'emoji': '🌾'},
+    {'label': 'Animal Products', 'emoji': '🥛'},
+    {'label': 'Manure', 'emoji': '🌱'},
+    {'label': 'Others', 'emoji': '📦'},
+  ];
 
   @override
   void initState() {
@@ -45,15 +56,63 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  List<Product> get filteredProducts {
+    if (selectedCategory == 'All') return products;
+    // Filter by name match for now — update when backend has category field
+    return products.where((p) {
+      final name = p.name.toLowerCase();
+      switch (selectedCategory) {
+        case 'Vegetables':
+          return name.contains('carrot') ||
+              name.contains('tomato') ||
+              name.contains('cabbage') ||
+              name.contains('spinach') ||
+              name.contains('kale') ||
+              name.contains('onion') ||
+              name.contains('pepper') ||
+              name.contains('vegetable');
+        case 'Fruits':
+          return name.contains('mango') ||
+              name.contains('banana') ||
+              name.contains('apple') ||
+              name.contains('orange') ||
+              name.contains('avocado') ||
+              name.contains('fruit');
+        case 'Grains':
+          return name.contains('maize') ||
+              name.contains('wheat') ||
+              name.contains('rice') ||
+              name.contains('grain') ||
+              name.contains('sorghum') ||
+              name.contains('millet') ||
+              name.contains('potato');
+        case 'Animal Products':
+          return name.contains('milk') ||
+              name.contains('egg') ||
+              name.contains('meat') ||
+              name.contains('honey') ||
+              name.contains('chicken') ||
+              name.contains('beef');
+        case 'Manure':
+          return name.contains('manure') ||
+              name.contains('compost') ||
+              name.contains('fertilizer');
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
   String shortDescription(String text) {
     final words = text.split(' ');
-    if (words.length <= 30) return text;
-    return '${words.take(30).join(' ')}...';
+    if (words.length <= 15) return text;
+    return '${words.take(15).join(' ')}...';
   }
 
   @override
   Widget build(BuildContext context) {
     final cart = Provider.of<CartProvider>(context);
+    final displayed = filteredProducts;
 
     return Scaffold(
       appBar: AppBar(
@@ -100,7 +159,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         children: [
           // 🔍 Search bar
           Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
             child: TextField(
               readOnly: true,
               onTap: () {
@@ -123,16 +182,47 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
           // 📦 Category chips
           SizedBox(
-            height: 40,
-            child: ListView(
+            height: 44,
+            child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              children: [
-                categoryChip("All"),
-                categoryChip("Vegetables"),
-                categoryChip("Fruits"),
-                categoryChip("Grains"),
-              ],
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                final isSelected = selectedCategory == cat['label'];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => selectedCategory = cat['label']!);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.green[700]
+                          : Colors.green[50],
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.green[700]!
+                            : Colors.green[200]!,
+                      ),
+                    ),
+                    child: Text(
+                      "${cat['emoji']} ${cat['label']}",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isSelected ? Colors.white : Colors.green[800],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
 
@@ -157,23 +247,43 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ],
                         ),
                       )
-                    : products.isEmpty
-                        ? const Center(child: Text("No products available"))
+                    : displayed.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  selectedCategory == 'All'
+                                      ? '🌿'
+                                      : categories.firstWhere((c) =>
+                                          c['label'] ==
+                                          selectedCategory)['emoji']!,
+                                  style: const TextStyle(fontSize: 48),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "No $selectedCategory available",
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          )
                         : RefreshIndicator(
                             onRefresh: fetchProducts,
                             child: Padding(
                               padding: const EdgeInsets.all(10),
                               child: GridView.builder(
-                                itemCount: products.length,
+                                itemCount: displayed.length,
                                 gridDelegate:
                                     const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
-                                  childAspectRatio: 1.15,
+                                  childAspectRatio: 0.75,
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10,
                                 ),
                                 itemBuilder: (context, index) {
-                                  final product = products[index];
+                                  final product = displayed[index];
 
                                   return GestureDetector(
                                     onTap: () {
@@ -207,23 +317,27 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                             children: [
                                               ClipRRect(
                                                 borderRadius:
-                                                    const BorderRadius.vertical(
-                                                        top:
-                                                            Radius.circular(12)),
-                                                child: product.imageUrl != null &&
-                                                        product.imageUrl!.isNotEmpty
+                                                    const BorderRadius
+                                                        .vertical(
+                                                        top: Radius.circular(
+                                                            12)),
+                                                child: product.imageUrl !=
+                                                            null &&
+                                                        product.imageUrl!
+                                                            .isNotEmpty
                                                     ? Image.network(
                                                         product.imageUrl!,
-                                                        height: 100,
-                                                        width: double.infinity,
+                                                        height: 110,
+                                                        width:
+                                                            double.infinity,
                                                         fit: BoxFit.cover,
                                                         errorBuilder: (context,
                                                                 error,
                                                                 stackTrace) =>
                                                             Container(
-                                                          height: 100,
-                                                          color:
-                                                              Colors.green[100],
+                                                          height: 110,
+                                                          color: Colors
+                                                              .green[100],
                                                           child: const Center(
                                                             child: Icon(
                                                                 Icons.image,
@@ -233,14 +347,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                         ),
                                                       )
                                                     : Container(
-                                                        height: 100,
+                                                        height: 110,
                                                         color:
                                                             Colors.green[100],
                                                         child: const Center(
                                                           child: Icon(
                                                               Icons.grass,
-                                                              color:
-                                                                  Colors.green),
+                                                              color: Colors
+                                                                  .green),
                                                         ),
                                                       ),
                                               ),
@@ -257,10 +371,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                               "Wishlist coming soon")),
                                                     );
                                                   },
-                                                  child: const Icon(
-                                                    Icons.favorite_border,
-                                                    color: Colors.white,
-                                                    size: 18,
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            4),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.black
+                                                          .withOpacity(0.3),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.favorite_border,
+                                                      color: Colors.white,
+                                                      size: 16,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -269,16 +393,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
                                           // 📝 Info
                                           Padding(
-                                            padding: const EdgeInsets.all(6),
+                                            padding: const EdgeInsets.all(8),
                                             child: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   product.name,
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
+                                                  style:
+                                                      GoogleFonts.poppins(
+                                                    fontSize: 13,
+                                                    fontWeight:
+                                                        FontWeight.w600,
                                                   ),
                                                   maxLines: 1,
                                                   overflow:
@@ -287,31 +413,37 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                 const SizedBox(height: 2),
                                                 Text(
                                                   "KSh ${product.price.toStringAsFixed(0)}",
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 12,
+                                                  style:
+                                                      GoogleFonts.poppins(
+                                                    fontSize: 13,
                                                     color: Colors.green[800],
-                                                    fontWeight: FontWeight.bold,
+                                                    fontWeight:
+                                                        FontWeight.bold,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 3),
+                                                const SizedBox(height: 2),
                                                 Text(
                                                   shortDescription(
                                                       product.description),
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 9,
-                                                    color: Colors.grey[700],
+                                                  style:
+                                                      GoogleFonts.poppins(
+                                                    fontSize: 10,
+                                                    color: Colors.grey[600],
                                                   ),
                                                   maxLines: 2,
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
-                                                const SizedBox(height: 4),
+                                                const SizedBox(height: 6),
 
                                                 // ➕ Add to cart button
                                                 Align(
                                                   alignment:
                                                       Alignment.centerRight,
                                                   child: GestureDetector(
+                                                    behavior:
+                                                        HitTestBehavior
+                                                            .opaque,
                                                     onTap: () {
                                                       cart.addToCart(product);
                                                       ScaffoldMessenger.of(
@@ -320,21 +452,27 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                         SnackBar(
                                                           content: Text(
                                                               "${product.name} added 🛒"),
+                                                          duration:
+                                                              const Duration(
+                                                                  seconds: 1),
                                                         ),
                                                       );
                                                     },
                                                     child: Container(
                                                       padding:
-                                                          const EdgeInsets.all(
-                                                              6),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.green[700],
-                                                        shape: BoxShape.circle,
+                                                          const EdgeInsets
+                                                              .all(8),
+                                                      decoration:
+                                                          BoxDecoration(
+                                                        color:
+                                                            Colors.green[700],
+                                                        shape:
+                                                            BoxShape.circle,
                                                       ),
                                                       child: const Icon(
                                                         Icons.add,
                                                         color: Colors.white,
-                                                        size: 16,
+                                                        size: 18,
                                                       ),
                                                     ),
                                                   ),
@@ -352,23 +490,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget categoryChip(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("$label filter coming soon")),
-          );
-        },
-        child: Chip(
-          label: Text(label),
-          backgroundColor: Colors.green[100],
-        ),
       ),
     );
   }
