@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../models/order.dart';
@@ -50,12 +51,101 @@ class _OrdersScreenState extends State<OrdersScreen>
     }
   }
 
+  /// Delete a pending order — confirm first, then call DELETE /orders/{id}/
+  Future<void> _deleteOrder(Order order) async {
+    // Confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Cancel Order?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(
+          'Order #${order.id} (KSh ${order.totalPrice.toStringAsFixed(0)}) will be cancelled and removed.',
+          style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Keep',
+                style: GoogleFonts.poppins(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child:
+                Text('Cancel Order', style: GoogleFonts.poppins(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      HapticFeedback.mediumImpact();
+      // Call DELETE /orders/{id}/ on your backend
+      await ApiService.delete("/orders/${order.id}/");
+
+      setState(() {
+        orders.removeWhere((o) => o.id == order.id);
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Text('Order #${order.id} cancelled',
+                style: GoogleFonts.poppins(fontSize: 13)),
+          ]),
+          backgroundColor: Colors.green[700],
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not cancel order: $e',
+              style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
   String _formatDate(String raw) {
     try {
       final dt = DateTime.parse(raw).toLocal();
       final months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
       ];
       return "${dt.day} ${months[dt.month]} ${dt.year}  •  "
           "${dt.hour.toString().padLeft(2, '0')}:"
@@ -140,8 +230,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.wifi_off,
-                          size: 60, color: Colors.grey),
+                      const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
                       const SizedBox(height: 12),
                       Text(errorMessage,
                           style: GoogleFonts.poppins(color: Colors.red)),
@@ -192,14 +281,14 @@ class _OrdersScreenState extends State<OrdersScreen>
                               Icons.access_time,
                               color: Colors.orange[200]!),
                           _divider(),
-                          _summaryItem("Paid", "${paid.length}",
-                              Icons.check_circle,
+                          _summaryItem(
+                              "Paid", "${paid.length}", Icons.check_circle,
                               color: Colors.greenAccent),
                         ],
                       ),
                     ),
 
-                    // Tabs content
+                    // Tabs
                     Expanded(
                       child: RefreshIndicator(
                         onRefresh: fetchOrders,
@@ -207,7 +296,8 @@ class _OrdersScreenState extends State<OrdersScreen>
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                            _buildList(pending, showPayButton: true),
+                            _buildList(pending,
+                                showPayButton: true, showDeleteButton: true),
                             _buildList(paid),
                             _buildList(delivered),
                           ],
@@ -231,8 +321,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                 fontSize: 22,
                 fontWeight: FontWeight.bold)),
         Text(label,
-            style: GoogleFonts.poppins(
-                color: Colors.white70, fontSize: 12)),
+            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
       ],
     );
   }
@@ -241,7 +330,8 @@ class _OrdersScreenState extends State<OrdersScreen>
     return Container(height: 40, width: 1, color: Colors.white24);
   }
 
-  Widget _buildList(List<Order> list, {bool showPayButton = false}) {
+  Widget _buildList(List<Order> list,
+      {bool showPayButton = false, bool showDeleteButton = false}) {
     if (list.isEmpty) {
       return Center(
         child: Column(
@@ -303,13 +393,11 @@ class _OrdersScreenState extends State<OrdersScreen>
                         children: [
                           Text("Order #${order.id}",
                               style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15)),
+                                  fontWeight: FontWeight.w700, fontSize: 15)),
                           const SizedBox(height: 4),
                           Text(_formatDate(order.createdAt),
                               style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  color: Colors.grey[500])),
+                                  fontSize: 11, color: Colors.grey[500])),
                         ],
                       ),
                     ),
@@ -348,41 +436,75 @@ class _OrdersScreenState extends State<OrdersScreen>
                   ],
                 ),
 
-                // 🔥 Pay button for pending orders
-                if (showPayButton) ...[
+                // ── Pay + Delete buttons for pending orders ────────────
+                if (showPayButton || showDeleteButton) ...[
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PaymentScreen(
-                              orderId: order.id,
-                              totalPrice: order.totalPrice,
+                  Row(
+                    children: [
+                      // Pay button
+                      if (showPayButton)
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PaymentScreen(
+                                    orderId: order.id,
+                                    totalPrice: order.totalPrice,
+                                  ),
+                                ),
+                              );
+                              fetchOrders();
+                            },
+                            icon: const Text("📱",
+                                style: TextStyle(fontSize: 15)),
+                            label: Text(
+                              "Pay via M-Pesa",
+                              style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[700],
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
-                        );
-                        // Refresh orders after payment
-                        fetchOrders();
-                      },
-                      icon: const Text("📱",
-                          style: TextStyle(fontSize: 16)),
-                      label: Text(
-                        "Pay KSh ${order.totalPrice.toStringAsFixed(0)} via M-Pesa",
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green[700],
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
+                        ),
+
+                      // Delete / Cancel button
+                      if (showDeleteButton) ...[
+                        if (showPayButton) const SizedBox(width: 10),
+                        SizedBox(
+                          height: 42,
+                          child: OutlinedButton(
+                            onPressed: () => _deleteOrder(order),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red[600],
+                              side: BorderSide(color: Colors.red[300]!),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.cancel_outlined,
+                                    size: 16, color: Colors.red[600]),
+                                const SizedBox(width: 4),
+                                Text('Cancel',
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        color: Colors.red[600])),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ],

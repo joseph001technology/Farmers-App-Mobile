@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../main.dart';
 import '../services/auth_service.dart';
+import 'register_screen.dart'; // ✅ ADD THIS IMPORT
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -51,14 +52,12 @@ class _LoginScreenState extends State<LoginScreen> {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
 
-        // ✅ SAVE EVERYTHING to SharedPreferences
         await prefs.setString("access", data['access']);
         await prefs.setString("refresh", data['refresh']);
         await prefs.setString("username", data['username'] ?? '');
         await prefs.setString("phoneNumber", data['phone_number'] ?? '');
         await prefs.setString("role", data['role'] ?? '');
 
-        // ✅ SET IN AuthService for current session
         AuthService.accessToken = data['access'];
         AuthService.refreshToken = data['refresh'];
         AuthService.username = data['username'];
@@ -109,7 +108,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   "Welcome back to FreshFarm",
                   style: GoogleFonts.poppins(
-                      fontSize: 24, fontWeight: FontWeight.bold),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
 
@@ -123,7 +124,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 40),
 
-                // 📱 PHONE INPUT
                 Container(
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.green.shade300),
@@ -143,7 +143,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     inputDecoration: InputDecoration(
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       hintText: "712 345 678",
                       hintStyle: TextStyle(color: Colors.grey[400]),
                     ),
@@ -152,13 +154,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // 🔐 PASSWORD
                 TextFormField(
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: "Password",
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     prefixIcon: const Icon(Icons.lock_outline),
                   ),
                   validator: (val) =>
@@ -174,15 +176,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     backgroundColor: Colors.green[700],
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(
-                          color: Colors.white)
+                          color: Colors.white,
+                        )
                       : const Text(
                           "Login",
                           style: TextStyle(
-                              fontSize: 18, color: Colors.white),
+                            fontSize: 18,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
 
@@ -191,14 +197,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("New here? ",
-                        style: GoogleFonts.poppins(
-                            color: Colors.grey[700])),
+                    Text(
+                      "New here? ",
+                      style: GoogleFonts.poppins(
+                        color: Colors.grey[700],
+                      ),
+                    ),
                     TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text("Register coming soon!")),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const RegisterScreen(),
+                          ),
                         );
                       },
                       child: const Text("Create account"),

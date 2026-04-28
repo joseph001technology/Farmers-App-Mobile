@@ -87,6 +87,10 @@ class ApiService {
       _handle401();
     }
 
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception("Delete failed: ${response.statusCode}");
+    }
+
     return response;
   }
 }
