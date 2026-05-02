@@ -19,6 +19,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
   bool isLoading = true;
   String errorMessage = '';
   String selectedCategory = 'All';
+  String searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   final List<Map<String, String>> categories = [
     {'label': 'All', 'emoji': '🌿'},
@@ -34,6 +36,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void initState() {
     super.initState();
     fetchProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchProducts() async {
@@ -57,50 +65,71 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   List<Product> get filteredProducts {
-    if (selectedCategory == 'All') return products;
-    // Filter by name match for now — update when backend has category field
-    return products.where((p) {
-      final name = p.name.toLowerCase();
-      switch (selectedCategory) {
-        case 'Vegetables':
-          return name.contains('carrot') ||
-              name.contains('tomato') ||
-              name.contains('cabbage') ||
-              name.contains('spinach') ||
-              name.contains('kale') ||
-              name.contains('onion') ||
-              name.contains('pepper') ||
-              name.contains('vegetable');
-        case 'Fruits':
-          return name.contains('mango') ||
-              name.contains('banana') ||
-              name.contains('apple') ||
-              name.contains('orange') ||
-              name.contains('avocado') ||
-              name.contains('fruit');
-        case 'Grains':
-          return name.contains('maize') ||
-              name.contains('wheat') ||
-              name.contains('rice') ||
-              name.contains('grain') ||
-              name.contains('sorghum') ||
-              name.contains('millet') ||
-              name.contains('potato');
-        case 'Animal Products':
-          return name.contains('milk') ||
-              name.contains('egg') ||
-              name.contains('meat') ||
-              name.contains('honey') ||
-              name.contains('chicken') ||
-              name.contains('beef');
-        case 'Manure':
-          return name.contains('manure') ||
-              name.contains('compost') ||
-              name.contains('fertilizer');
-        default:
-          return true;
-      }
-    }).toList();
+    List<Product> result = products;
+
+    // Filter by category — prefer the real category field, fallback to name matching
+    if (selectedCategory != 'All') {
+      result = result.where((p) {
+        // Use real category field if available
+        if (p.category != null && p.category!.isNotEmpty) {
+          return p.category!.toLowerCase() ==
+              selectedCategory.toLowerCase();
+        }
+        // Fallback: name-based heuristic
+        final name = p.name.toLowerCase();
+        switch (selectedCategory) {
+          case 'Vegetables':
+            return name.contains('carrot') ||
+                name.contains('tomato') ||
+                name.contains('cabbage') ||
+                name.contains('spinach') ||
+                name.contains('kale') ||
+                name.contains('onion') ||
+                name.contains('pepper') ||
+                name.contains('vegetable');
+          case 'Fruits':
+            return name.contains('mango') ||
+                name.contains('banana') ||
+                name.contains('apple') ||
+                name.contains('orange') ||
+                name.contains('avocado') ||
+                name.contains('fruit');
+          case 'Grains':
+            return name.contains('maize') ||
+                name.contains('wheat') ||
+                name.contains('rice') ||
+                name.contains('grain') ||
+                name.contains('sorghum') ||
+                name.contains('millet') ||
+                name.contains('potato');
+          case 'Animal Products':
+            return name.contains('milk') ||
+                name.contains('egg') ||
+                name.contains('meat') ||
+                name.contains('honey') ||
+                name.contains('chicken') ||
+                name.contains('beef');
+          case 'Manure':
+            return name.contains('manure') ||
+                name.contains('compost') ||
+                name.contains('fertilizer');
+          default:
+            return true;
+        }
+      }).toList();
+    }
+
+    // Live search filter — searches name and description
+    if (searchQuery.isNotEmpty) {
+      final q = searchQuery.toLowerCase();
+      result = result.where((p) {
+        return p.name.toLowerCase().contains(q) ||
+            p.description.toLowerCase().contains(q) ||
+            (p.category?.toLowerCase().contains(q) ?? false);
+      }).toList();
+    }
+
+    return result;
   }
 
   String shortDescription(String text) {
@@ -157,19 +186,28 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
       body: Column(
         children: [
-          // 🔍 Search bar
+          // 🔍 Search bar — now LIVE, not readOnly
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
             child: TextField(
-              readOnly: true,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Search coming soon")),
-                );
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() => searchQuery = value.trim());
               },
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: "Search products...",
+                hintStyle: GoogleFonts.poppins(fontSize: 14),
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon: searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => searchQuery = '');
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.grey[100],
                 border: OutlineInputBorder(
@@ -179,6 +217,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
             ),
           ),
+
+          // Search result count
+          if (searchQuery.isNotEmpty)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "${displayed.length} result${displayed.length == 1 ? '' : 's'} for \"$searchQuery\"",
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, color: Colors.grey[600]),
+                ),
+              ),
+            ),
 
           // 📦 Category chips
           SizedBox(
@@ -217,7 +270,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         fontWeight: isSelected
                             ? FontWeight.w600
                             : FontWeight.normal,
-                        color: isSelected ? Colors.white : Colors.green[800],
+                        color:
+                            isSelected ? Colors.white : Colors.green[800],
                       ),
                     ),
                   ),
@@ -253,19 +307,33 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  selectedCategory == 'All'
-                                      ? '🌿'
-                                      : categories.firstWhere((c) =>
-                                          c['label'] ==
-                                          selectedCategory)['emoji']!,
+                                  searchQuery.isNotEmpty
+                                      ? '🔍'
+                                      : (selectedCategory == 'All'
+                                          ? '🌿'
+                                          : categories.firstWhere((c) =>
+                                              c['label'] ==
+                                              selectedCategory)['emoji']!),
                                   style: const TextStyle(fontSize: 48),
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  "No $selectedCategory available",
+                                  searchQuery.isNotEmpty
+                                      ? "No results for \"$searchQuery\""
+                                      : "No $selectedCategory available",
                                   style: GoogleFonts.poppins(
                                       color: Colors.grey[600]),
                                 ),
+                                if (searchQuery.isNotEmpty)
+                                  TextButton(
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => searchQuery = '');
+                                    },
+                                    child: Text("Clear search",
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.green[700])),
+                                  ),
                               ],
                             ),
                           )
@@ -278,7 +346,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 gridDelegate:
                                     const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
-                                  childAspectRatio: 0.75,
+                                  childAspectRatio: 0.72,
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10,
                                 ),
@@ -312,7 +380,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          // 🖼️ Image
                                           Stack(
                                             children: [
                                               ClipRRect(
@@ -358,6 +425,36 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                         ),
                                                       ),
                                               ),
+                                              // Category badge
+                                              if (product.category != null &&
+                                                  product.category!.isNotEmpty)
+                                                Positioned(
+                                                  top: 6,
+                                                  left: 6,
+                                                  child: Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.green[700]!
+                                                          .withOpacity(0.85),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                    ),
+                                                    child: Text(
+                                                      product.category!,
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                        fontSize: 9,
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                               Positioned(
                                                 right: 6,
                                                 top: 6,
@@ -391,7 +488,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                             ],
                                           ),
 
-                                          // 📝 Info
                                           Padding(
                                             padding: const EdgeInsets.all(8),
                                             child: Column(
@@ -421,22 +517,59 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                         FontWeight.bold,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  shortDescription(
-                                                      product.description),
-                                                  style:
-                                                      GoogleFonts.poppins(
-                                                    fontSize: 10,
-                                                    color: Colors.grey[600],
+                                                // Rating stars
+                                                if (product.averageRating !=
+                                                        null &&
+                                                    product.averageRating! > 0)
+                                                  Row(
+                                                    children: [
+                                                      ...List.generate(
+                                                        5,
+                                                        (i) => Icon(
+                                                          i <
+                                                                  product
+                                                                      .averageRating!
+                                                                      .floor()
+                                                              ? Icons
+                                                                  .star_rounded
+                                                              : (i <
+                                                                      product
+                                                                          .averageRating!
+                                                                  ? Icons
+                                                                      .star_half_rounded
+                                                                  : Icons
+                                                                      .star_outline_rounded),
+                                                          color: Colors.amber,
+                                                          size: 12,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 3),
+                                                      Text(
+                                                        product.averageRating!
+                                                            .toStringAsFixed(1),
+                                                        style: GoogleFonts
+                                                            .poppins(
+                                                                fontSize: 10,
+                                                                color: Colors
+                                                                    .grey[600]),
+                                                      ),
+                                                    ],
+                                                  )
+                                                else
+                                                  Text(
+                                                    shortDescription(
+                                                        product.description),
+                                                    style:
+                                                        GoogleFonts.poppins(
+                                                      fontSize: 10,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
                                                 const SizedBox(height: 6),
 
-                                                // ➕ Add to cart button
                                                 Align(
                                                   alignment:
                                                       Alignment.centerRight,

@@ -1,4 +1,3 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
@@ -8,6 +7,8 @@ import 'products_screen.dart';
 import 'product_detail_screen.dart';
 import 'cart_screen.dart';
 import 'farmer_dashboard_screen.dart';
+import 'admin_dashboard_screen.dart';
+import 'ratings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,13 +42,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final username = AuthService.username ?? "Farmer";
-    final isFarmer = AuthService.role == 'farmer';
+    final role = AuthService.role ?? "";
+    final isFarmer = role == 'farmer';
+    final isAdmin = role == 'admin';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F9F0),
       body: CustomScrollView(
         slivers: [
-          // ── Hero App Bar ────────────────────────────────────────────
+          // 🌾 Hero App Bar
           SliverAppBar(
             expandedHeight: 260,
             pinned: true,
@@ -70,9 +73,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Positioned(
-                    top: -40, right: -40,
+                    top: -40,
+                    right: -40,
                     child: Container(
-                      width: 180, height: 180,
+                      width: 180,
+                      height: 180,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white.withOpacity(0.06),
@@ -80,9 +85,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Positioned(
-                    bottom: -20, left: -30,
+                    bottom: -20,
+                    left: -30,
                     child: Container(
-                      width: 140, height: 140,
+                      width: 140,
+                      height: 140,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white.withOpacity(0.06),
@@ -95,66 +102,84 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Row(children: [
-                          const Text("🌾 ", style: TextStyle(fontSize: 28)),
-                          Text("FreshFarm",
+                        Row(
+                          children: [
+                            const Text("🌾 ", style: TextStyle(fontSize: 28)),
+                            Text(
+                              "FreshFarm",
                               style: GoogleFonts.playfairDisplay(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white)),
-                        ]),
-                        const SizedBox(height: 6),
-                        Text("Good morning, $username 👋",
-                            style: GoogleFonts.poppins(
-                                fontSize: 15, color: Colors.white70)),
-                        const SizedBox(height: 10),
-                        // ── Farmer dashboard quick-link ─────────────
-                        if (isFarmer)
-                          GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      const FarmerDashboardScreen()),
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                            child: Container(
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Good morning, $username 👋",
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.amber.withOpacity(0.25),
+                                color: Colors.white.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                    color: Colors.amber.withOpacity(0.6)),
+                                    color: Colors.white.withOpacity(0.3)),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.bar_chart,
-                                      color: Colors.amber, size: 16),
-                                  const SizedBox(width: 6),
-                                  Text("View My Dashboard",
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          color: Colors.amber[100],
-                                          fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ),
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.3)),
-                            ),
-                            child: Text("🇰🇪  Nairobi, Kenya  •  Farm to Table",
+                              child: Text(
+                                "🇰🇪  Nairobi, Kenya  •  Farm to Table",
                                 style: GoogleFonts.poppins(
-                                    fontSize: 12, color: Colors.white)),
-                          ),
+                                    fontSize: 12, color: Colors.white),
+                              ),
+                            ),
+                            // Dashboard shortcut for farmers/admins
+                            if (isFarmer || isAdmin) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => isAdmin
+                                        ? const AdminDashboardScreen()
+                                        : const FarmerDashboardScreen(),
+                                  ),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.dashboard,
+                                          color: Colors.white, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isAdmin ? "Admin" : "Dashboard",
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -162,18 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             actions: [
-              // Dashboard icon in AppBar for farmers
-              if (isFarmer)
-                IconButton(
-                  icon: const Icon(Icons.dashboard_outlined,
-                      color: Colors.amber),
-                  tooltip: 'My Dashboard',
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const FarmerDashboardScreen()),
-                  ),
-                ),
               IconButton(
                 icon: const Icon(Icons.notifications_outlined,
                     color: Colors.white),
@@ -192,68 +205,9 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Farmer dashboard banner ─────────────────────────
-                if (isFarmer)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const FarmerDashboardScreen()),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.green[800]!,
-                              Colors.teal[600]!
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.green.withOpacity(0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4))
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.bar_chart,
-                                color: Colors.white, size: 32),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Farmer Dashboard",
-                                      style: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15)),
-                                  Text(
-                                      "View your sales, revenue & top products",
-                                      style: GoogleFonts.poppins(
-                                          color: Colors.white70,
-                                          fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_ios,
-                                color: Colors.white70, size: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // ── Stats row ───────────────────────────────────────
+                // 🔥 Stats row
                 Padding(
-                  padding: EdgeInsets.fromLTRB(16, isFarmer ? 16 : 20, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                   child: Row(
                     children: [
                       _statCard("🥬", "Fresh Daily", "Harvested today"),
@@ -265,9 +219,79 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
+                // 🧑‍🌾 Farmer/Admin quick actions banner
+                if (isFarmer || isAdmin) ...[
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.orange[700]!, Colors.orange[400]!],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text("📊", style: TextStyle(fontSize: 28)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isAdmin
+                                      ? "Admin Dashboard"
+                                      : "Farmer Dashboard",
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15),
+                                ),
+                                Text(
+                                  isAdmin
+                                      ? "View platform analytics & reports"
+                                      : "Track your sales & revenue",
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => isAdmin
+                                    ? const AdminDashboardScreen()
+                                    : const FarmerDashboardScreen(),
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.orange[700],
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                            ),
+                            child: Text("Open",
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 28),
 
-                // ── About section ───────────────────────────────────
+                // 🧑‍🌾 About section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -277,9 +301,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4))
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        )
                       ],
                     ),
                     child: Row(
@@ -296,14 +321,32 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("Joseph Kiarie",
-                                  style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16)),
-                              Text("Organic Farmer • Nairobi",
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      color: Colors.green[700])),
+                              Text(
+                                "Joseph Kiarie",
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16),
+                              ),
+                              Text(
+                                "Organic Farmer • Nairobi",
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.green[700]),
+                              ),
+                              const SizedBox(height: 4),
+                              // Star rating display
+                              Row(
+                                children: List.generate(
+                                  5,
+                                  (i) => Icon(
+                                    i < 4
+                                        ? Icons.star_rounded
+                                        : Icons.star_half_rounded,
+                                    color: Colors.amber,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 "Everything here is harvested fresh and delivered straight from my farm — no middlemen, just pure goodness ❤️",
@@ -313,22 +356,47 @@ class _HomeScreenState extends State<HomeScreen> {
                                     height: 1.5),
                               ),
                               const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.phone, size: 16),
-                                  label: const Text("Call Joseph"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange[600],
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {},
+                                      icon: const Icon(Icons.phone, size: 16),
+                                      label: const Text("Call Joseph"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange[600],
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 10),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const RatingsScreen()),
+                                    ),
+                                    icon: const Icon(Icons.star_outline,
+                                        size: 16),
+                                    label: const Text("Reviews"),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.green[700],
+                                      side: BorderSide(
+                                          color: Colors.green[300]!),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 12),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -340,19 +408,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 28),
 
-                // ── Today's Picks ────────────────────────────────────
+                // 🛒 Featured Products
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Today's Picks 🌽",
-                          style: GoogleFonts.poppins(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        "Today's Picks 🌽",
+                        style: GoogleFonts.poppins(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                       TextButton(
-                        onPressed: () => Navigator.push(context,
-                            MaterialPageRoute(
-                                builder: (_) => const ProductsScreen())),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ProductsScreen()),
+                        ),
                         child: Text("See all",
                             style: GoogleFonts.poppins(
                                 color: Colors.green[700])),
@@ -360,9 +432,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 10),
 
-                // ── Featured products horizontal list ────────────────
                 SizedBox(
                   height: 220,
                   child: isLoading
@@ -385,22 +457,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) =>
-                                          ProductDetailScreen(product: product),
+                                      builder: (_) => ProductDetailScreen(
+                                          product: product),
                                     ),
                                   ),
                                   child: Container(
-                                    width: 150,
+                                    width: 155,
                                     margin: const EdgeInsets.only(right: 12),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius:
+                                          BorderRadius.circular(16),
                                       boxShadow: [
                                         BoxShadow(
-                                            color: Colors.black
-                                                .withOpacity(0.06),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 3))
+                                          color:
+                                              Colors.black.withOpacity(0.06),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        )
                                       ],
                                     ),
                                     child: Column(
@@ -429,14 +503,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              Text(product.name,
-                                                  style: GoogleFonts.poppins(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 13),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
+                                              Text(
+                                                product.name,
+                                                style: GoogleFonts.poppins(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
                                               Text(
                                                 "KSh ${product.price.toStringAsFixed(0)}",
                                                 style: GoogleFonts.poppins(
@@ -444,23 +519,43 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 13),
                                               ),
-                                              // ── Rating stars ──────
+                                              // Rating stars
                                               if (product.averageRating !=
-                                                  null)
-                                                Row(children: [
-                                                  const Icon(Icons.star,
-                                                      color: Colors.amber,
-                                                      size: 13),
-                                                  const SizedBox(width: 2),
-                                                  Text(
-                                                    product.averageRating!
-                                                        .toStringAsFixed(1),
-                                                    style: GoogleFonts.poppins(
-                                                        fontSize: 11,
-                                                        color:
-                                                            Colors.grey[600]),
-                                                  ),
-                                                ]),
+                                                      null &&
+                                                  product.averageRating! > 0)
+                                                Row(
+                                                  children: [
+                                                    ...List.generate(
+                                                      5,
+                                                      (i) => Icon(
+                                                        i <
+                                                                product
+                                                                    .averageRating!
+                                                                    .floor()
+                                                            ? Icons.star_rounded
+                                                            : (i <
+                                                                    product
+                                                                        .averageRating!
+                                                                ? Icons
+                                                                    .star_half_rounded
+                                                                : Icons
+                                                                    .star_outline_rounded),
+                                                        color: Colors.amber,
+                                                        size: 12,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 3),
+                                                    Text(
+                                                      product.averageRating!
+                                                          .toStringAsFixed(1),
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                              fontSize: 10,
+                                                              color: Colors
+                                                                  .grey[600]),
+                                                    ),
+                                                  ],
+                                                ),
                                             ],
                                           ),
                                         ),
@@ -474,36 +569,44 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 28),
 
-                // ── Why FreshFarm ────────────────────────────────────
+                // 🌿 Why choose us
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text("Why FreshFarm? 🌿",
-                      style: GoogleFonts.poppins(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    "Why FreshFarm? 🌿",
+                    style: GoogleFonts.poppins(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(children: [
-                    _reasonTile("🌱", "100% Organic",
-                        "No pesticides, no chemicals — just clean soil and sunshine."),
-                    _reasonTile("🚚", "Same-Day Delivery",
-                        "Order before noon and get it at your door by evening."),
-                    _reasonTile("💰", "Fair Prices",
-                        "Direct from farmer means no middlemen markup."),
-                    _reasonTile("❤️", "Community First",
-                        "Every purchase supports a local Nairobi family farm."),
-                  ]),
+                  child: Column(
+                    children: [
+                      _reasonTile("🌱", "100% Organic",
+                          "No pesticides, no chemicals — just clean soil and sunshine."),
+                      _reasonTile("🚚", "Same-Day Delivery",
+                          "Order before noon and get it at your door by evening."),
+                      _reasonTile("💰", "Fair Prices",
+                          "Direct from farmer means no middlemen markup."),
+                      _reasonTile("❤️", "Community First",
+                          "Every purchase supports a local Nairobi family farm."),
+                    ],
+                  ),
                 ),
+
                 const SizedBox(height: 40),
               ],
             ),
           ),
         ],
       ),
+
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const ProductsScreen())),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProductsScreen()),
+        ),
         backgroundColor: Colors.green[700],
         icon: const Icon(Icons.store, color: Colors.white),
         label: Text("Shop Now",
@@ -522,23 +625,26 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2))
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            )
           ],
         ),
-        child: Column(children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
-          const SizedBox(height: 4),
-          Text(title,
-              style: GoogleFonts.poppins(
-                  fontSize: 11, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center),
-          Text(subtitle,
-              style:
-                  GoogleFonts.poppins(fontSize: 9, color: Colors.grey[600]),
-              textAlign: TextAlign.center),
-        ]),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 4),
+            Text(title,
+                style: GoogleFonts.poppins(
+                    fontSize: 11, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            Text(subtitle,
+                style: GoogleFonts.poppins(
+                    fontSize: 9, color: Colors.grey[600]),
+                textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
@@ -552,25 +658,31 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2))
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          )
         ],
       ),
-      child: Row(children: [
-        Text(emoji, style: const TextStyle(fontSize: 26)),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title,
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600, fontSize: 14)),
-            Text(subtitle,
-                style:
-                    GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600])),
-          ]),
-        ),
-      ]),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(subtitle,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.grey[600])),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
