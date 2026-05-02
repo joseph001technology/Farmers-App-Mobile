@@ -354,7 +354,16 @@ class _OrdersScreenState extends State<OrdersScreen>
         final order = list[index];
         final color = _statusColor(order.status);
 
-        return Container(
+        return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OrderDetailScreen(order: order),
+            ),
+          );
+        },
+        child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -510,7 +519,8 @@ class _OrdersScreenState extends State<OrdersScreen>
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }
