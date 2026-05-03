@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../models/order.dart';
 import 'payment_screen.dart';
 import 'order_detail_screen.dart';
@@ -54,6 +56,10 @@ class _OrdersScreenState extends State<OrdersScreen>
     }
   }
 
+  /// ── DELETE ORDER ─────────────────────────────────────────────────
+  /// The backend returns 405 if the endpoint or method is wrong.
+  /// We try DELETE /orders/{id}/ first, then /orders/{id} (no slash),
+  /// then fall back to a PATCH to status=cancelled if both fail.
   Future<void> _deleteOrder(Order order) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -63,7 +69,7 @@ class _OrdersScreenState extends State<OrdersScreen>
         title: Text('Cancel Order?',
             style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
         content: Text(
-          'Order #${order.id} (KSh ${order.totalPrice.toStringAsFixed(0)}) will be cancelled and removed.',
+          'Order #${order.id} (KSh ${order.totalPrice.toStringAsFixed(0)}) will be cancelled.',
           style:
               GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
         ),
@@ -81,7 +87,7 @@ class _OrdersScreenState extends State<OrdersScreen>
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text('Cancel Order',
+            child: Text('Yes, Cancel',
                 style: GoogleFonts.poppins(fontSize: 13)),
           ),
         ],
@@ -90,32 +96,74 @@ class _OrdersScreenState extends State<OrdersScreen>
 
     if (confirmed != true) return;
 
+    HapticFeedback.mediumImpact();
+
     try {
-      HapticFeedback.mediumImpact();
-      await ApiService.delete("/orders/${order.id}/");
-      setState(() => orders.removeWhere((o) => o.id == order.id));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(children: [
-            const Icon(Icons.check_circle_outline, color: Colors.white),
-            const SizedBox(width: 8),
-            Text('Order #${order.id} cancelled',
-                style: GoogleFonts.poppins(fontSize: 13)),
-          ]),
-          backgroundColor: Colors.green[700],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ),
+      final baseUrl =
+          'https://josephkiarie2.pythonanywhere.com/api';
+      final token = AuthService.getToken();
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+      // Try DELETE with trailing slash first
+      var response = await http.delete(
+        Uri.parse('$baseUrl/orders/${order.id}/'),
+        headers: headers,
       );
+
+      // 405 = Method Not Allowed → try without trailing slash
+      if (response.statusCode == 405) {
+        response = await http.delete(
+          Uri.parse('$baseUrl/orders/${order.id}'),
+          headers: headers,
+        );
+      }
+
+      // Still failing → try PATCH to mark as cancelled
+      if (response.statusCode != 200 &&
+          response.statusCode != 204 &&
+          response.statusCode != 404) {
+        response = await http.patch(
+          Uri.parse('$baseUrl/orders/${order.id}/'),
+          headers: headers,
+          body: '{"status":"cancelled"}',
+        );
+      }
+
+      // 404 is also fine (already deleted on server)
+      if (response.statusCode == 200 ||
+          response.statusCode == 204 ||
+          response.statusCode == 404) {
+        setState(() => orders.removeWhere((o) => o.id == order.id));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(children: [
+              const Icon(Icons.check_circle_outline,
+                  color: Colors.white),
+              const SizedBox(width: 8),
+              Text('Order #${order.id} cancelled',
+                  style: GoogleFonts.poppins(fontSize: 13)),
+            ]),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      } else {
+        throw Exception(
+            'Delete failed: ${response.statusCode}\n${response.body}');
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not cancel order: $e',
-              style: GoogleFonts.poppins()),
+          content: Text('Could not cancel: $e',
+              style: GoogleFonts.poppins(fontSize: 12)),
           backgroundColor: Colors.red[700],
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -237,7 +285,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                 )
               : Column(
                   children: [
-                    // ── Summary banner ───────────────────────────────
+                    // Summary banner
                     Container(
                       margin: const EdgeInsets.all(16),
                       padding: const EdgeInsets.symmetric(
@@ -280,7 +328,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                       ),
                     ),
 
-                    // ── Tab views ────────────────────────────────────
                     Expanded(
                       child: RefreshIndicator(
                         onRefresh: fetchOrders,
@@ -353,7 +400,6 @@ class _OrdersScreenState extends State<OrdersScreen>
         final color = _statusColor(order.status);
 
         return GestureDetector(
-          // ✅ Passes the full Order object — matches OrderDetailScreen constructor
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
@@ -379,7 +425,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                 children: [
                   Row(
                     children: [
-                      // Status icon bubble
                       Container(
                         width: 52,
                         height: 52,
@@ -391,8 +436,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                             color: color, size: 28),
                       ),
                       const SizedBox(width: 14),
-
-                      // Order ID + date + payment badge
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +449,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                                 style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     color: Colors.grey[500])),
-                            // Payment method badge
                             if (order.paymentMethod != null) ...[
                               const SizedBox(height: 4),
                               Container(
@@ -431,8 +473,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                           ],
                         ),
                       ),
-
-                      // Price + status badge
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -466,14 +506,12 @@ class _OrdersScreenState extends State<OrdersScreen>
                     ],
                   ),
 
-                  // ── Action buttons ───────────────────────────────
                   if (showPayButton ||
                       showDeleteButton ||
                       showRateButton) ...[
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        // Pay via M-Pesa (pending orders)
                         if (showPayButton)
                           Expanded(
                             child: ElevatedButton.icon(
@@ -507,7 +545,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                             ),
                           ),
 
-                        // Cancel order (pending orders)
                         if (showDeleteButton) ...[
                           if (showPayButton)
                             const SizedBox(width: 10),
@@ -540,7 +577,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                           ),
                         ],
 
-                        // Rate & Review (delivered orders)
                         if (showRateButton)
                           Expanded(
                             child: ElevatedButton.icon(
