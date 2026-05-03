@@ -1,11 +1,13 @@
- 
 class OrderItem {
   final int id;
   final int productId;
   final String productName;
   final String? productImage;
   final int quantity;
-  final double price;
+  final double unitPrice;
+
+  // Alias so both .price and .unitPrice work
+  double get price => unitPrice;
 
   OrderItem({
     required this.id,
@@ -13,59 +15,73 @@ class OrderItem {
     required this.productName,
     this.productImage,
     required this.quantity,
-    required this.price,
+    required this.unitPrice,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
-      id: json['id'],
-      productId: json['product'],
-      productName: json['product_name'] ?? '',
-      productImage: json['product_image'],
-      quantity: json['quantity'],
-      price: double.tryParse(json['price'].toString()) ?? 0.0,
+      id: json['id'] ?? 0,
+      productId: json['product'] ?? json['product_id'] ?? 0,
+      productName: json['product_name'] ?? json['name'] ?? 'Product',
+      productImage: json['product_image'] ??
+          json['image'] ??
+          json['image_url'] ??
+          json['imageUrl'],
+      quantity: int.tryParse(json['quantity'].toString()) ?? 1,
+      unitPrice: double.tryParse(
+              json['unit_price']?.toString() ??
+                  json['price']?.toString() ??
+                  '0') ??
+          0.0,
     );
   }
 }
 
 class Order {
   final int id;
+  final String status;
   final double totalPrice;
   final String createdAt;
-  final String status;
-  final String paymentMethod;
+  final String? paymentMethod;
   final String? deliveryAddress;
-  final List<OrderItem> orderItems;
+  final List<OrderItem>? items;
+
+  // Convenience getters used by order_detail_screen
+  List<OrderItem> get orderItems => items ?? [];
+  bool get isDelivered => status == 'delivered';
 
   Order({
     required this.id,
+    required this.status,
     required this.totalPrice,
     required this.createdAt,
-    required this.status,
-    this.paymentMethod = 'mpesa',
+    this.paymentMethod,
     this.deliveryAddress,
-    this.orderItems = const [],
+    this.items,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
-    final itemsJson = json['order_items'] as List<dynamic>? ?? [];
+    final List<dynamic>? rawItems = json['items'];
     return Order(
-      id: json['id'],
-      totalPrice: double.tryParse(json['total_price'].toString()) ?? 0,
-      createdAt: json['created_at'] ?? '',
+      id: json['id'] ?? 0,
       status: json['status'] ?? 'pending',
-      paymentMethod: json['payment_method'] ?? 'mpesa',
+      totalPrice:
+          double.tryParse(json['total_price']?.toString() ?? '0') ?? 0.0,
+      createdAt: json['created_at'] ?? '',
+      paymentMethod: json['payment_method'],
       deliveryAddress: json['delivery_address'],
-      orderItems: itemsJson
-          .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      items: rawItems?.map((i) => OrderItem.fromJson(i)).toList(),
     );
   }
 
-  bool get isPod => paymentMethod == 'pod';
-  bool get isPending =>
-      status == 'pending' || status == 'pending_delivery';
-  bool get isPaid => status == 'paid';
-  bool get isDelivered => status == 'delivered';
-  bool get isOutForDelivery => status == 'out_for_delivery';
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'status': status,
+      'total_price': totalPrice,
+      'created_at': createdAt,
+      'payment_method': paymentMethod,
+      'delivery_address': deliveryAddress,
+    };
+  }
 }

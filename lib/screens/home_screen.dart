@@ -39,6 +39,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Widget _dashboardScreen(bool isAdmin) {
+    return isAdmin
+        ? const AdminDashboardScreen()
+        : const FarmerDashboardScreen();
+  }
+
   @override
   Widget build(BuildContext context) {
     final username = AuthService.username ?? "Farmer";
@@ -104,7 +110,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Row(
                           children: [
-                            const Text("🌾 ", style: TextStyle(fontSize: 28)),
+                            const Text("🌾 ",
+                                style: TextStyle(fontSize: 28)),
                             Text(
                               "FreshFarm",
                               style: GoogleFonts.playfairDisplay(
@@ -119,12 +126,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           "Good morning, $username 👋",
                           style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            color: Colors.white70,
-                          ),
+                              fontSize: 15, color: Colors.white70),
                         ),
                         const SizedBox(height: 10),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -133,7 +140,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Colors.white.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                    color: Colors.white.withOpacity(0.3)),
+                                    color:
+                                        Colors.white.withOpacity(0.3)),
                               ),
                               child: Text(
                                 "🇰🇪  Nairobi, Kenya  •  Farm to Table",
@@ -141,24 +149,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontSize: 12, color: Colors.white),
                               ),
                             ),
-                            // Dashboard shortcut for farmers/admins
-                            if (isFarmer || isAdmin) ...[
-                              const SizedBox(width: 8),
+                            if (isFarmer || isAdmin)
                               GestureDetector(
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => isAdmin
-                                        ? const AdminDashboardScreen()
-                                        : const FarmerDashboardScreen(),
+                                    builder: (_) =>
+                                        _dashboardScreen(isAdmin),
                                   ),
                                 ),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.85),
-                                    borderRadius: BorderRadius.circular(20),
+                                    color:
+                                        Colors.orange.withOpacity(0.85),
+                                    borderRadius:
+                                        BorderRadius.circular(20),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -177,7 +184,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               ),
-                            ],
                           ],
                         ),
                       ],
@@ -195,8 +201,10 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.shopping_cart_outlined,
                     color: Colors.white),
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const CartScreen())),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartScreen()),
+                ),
               ),
             ],
           ),
@@ -205,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 🔥 Stats row
+                // Stats row
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                   child: Row(
@@ -219,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // 🧑‍🌾 Farmer/Admin quick actions banner
+                // Farmer/Admin dashboard banner
                 if (isFarmer || isAdmin) ...[
                   const SizedBox(height: 20),
                   Padding(
@@ -228,7 +236,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.orange[700]!, Colors.orange[400]!],
+                          colors: [
+                            Colors.orange[700]!,
+                            Colors.orange[400]!
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -236,11 +247,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Text("📊", style: TextStyle(fontSize: 28)),
+                          const Text("📊",
+                              style: TextStyle(fontSize: 28)),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   isAdmin
@@ -256,7 +269,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ? "View platform analytics & reports"
                                       : "Track your sales & revenue",
                                   style: GoogleFonts.poppins(
-                                      color: Colors.white70, fontSize: 12),
+                                      color: Colors.white70,
+                                      fontSize: 12),
                                 ),
                               ],
                             ),
@@ -265,16 +279,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPressed: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => isAdmin
-                                    ? const AdminDashboardScreen()
-                                    : const FarmerDashboardScreen(),
+                                builder: (_) =>
+                                    _dashboardScreen(isAdmin),
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: Colors.orange[700],
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
+                                  borderRadius:
+                                      BorderRadius.circular(10)),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
                             ),
@@ -291,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 28),
 
-                // 🧑‍🌾 About section
+                // About farmer card
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -319,7 +333,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 "Joseph Kiarie",
@@ -334,7 +349,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: Colors.green[700]),
                               ),
                               const SizedBox(height: 4),
-                              // Star rating display
                               Row(
                                 children: List.generate(
                                   5,
@@ -361,16 +375,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       onPressed: () {},
-                                      icon: const Icon(Icons.phone, size: 16),
-                                      label: const Text("Call Joseph"),
+                                      icon: const Icon(Icons.phone,
+                                          size: 16),
+                                      label:
+                                          const Text("Call Joseph"),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange[600],
+                                        backgroundColor:
+                                            Colors.orange[600],
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(
                                             borderRadius:
-                                                BorderRadius.circular(10)),
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 10),
+                                                BorderRadius.circular(
+                                                    10)),
+                                        padding:
+                                            const EdgeInsets.symmetric(
+                                                vertical: 10),
                                       ),
                                     ),
                                   ),
@@ -382,18 +401,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                           builder: (_) =>
                                               const RatingsScreen()),
                                     ),
-                                    icon: const Icon(Icons.star_outline,
+                                    icon: const Icon(
+                                        Icons.star_outline,
                                         size: 16),
                                     label: const Text("Reviews"),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.green[700],
+                                      foregroundColor:
+                                          Colors.green[700],
                                       side: BorderSide(
                                           color: Colors.green[300]!),
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(10)),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10, horizontal: 12),
+                                              BorderRadius.circular(
+                                                  10)),
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                              vertical: 10,
+                                              horizontal: 12),
                                     ),
                                   ),
                                 ],
@@ -408,7 +432,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 28),
 
-                // 🛒 Featured Products
+                // Featured products header
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
@@ -435,6 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 10),
 
+                // Featured products list
                 SizedBox(
                   height: 220,
                   child: isLoading
@@ -448,30 +473,33 @@ class _HomeScreenState extends State<HomeScreen> {
                                       color: Colors.grey)))
                           : ListView.builder(
                               scrollDirection: Axis.horizontal,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16),
                               itemCount: featuredProducts.length,
                               itemBuilder: (context, index) {
-                                final product = featuredProducts[index];
+                                final product =
+                                    featuredProducts[index];
                                 return GestureDetector(
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => ProductDetailScreen(
-                                          product: product),
+                                      builder: (_) =>
+                                          ProductDetailScreen(
+                                              product: product),
                                     ),
                                   ),
                                   child: Container(
                                     width: 155,
-                                    margin: const EdgeInsets.only(right: 12),
+                                    margin: const EdgeInsets.only(
+                                        right: 12),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       borderRadius:
                                           BorderRadius.circular(16),
                                       boxShadow: [
                                         BoxShadow(
-                                          color:
-                                              Colors.black.withOpacity(0.06),
+                                          color: Colors.black
+                                              .withOpacity(0.06),
                                           blurRadius: 8,
                                           offset: const Offset(0, 3),
                                         )
@@ -484,21 +512,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ClipRRect(
                                           borderRadius:
                                               const BorderRadius.vertical(
-                                                  top: Radius.circular(16)),
-                                          child: product.imageUrl != null &&
-                                                  product.imageUrl!.isNotEmpty
+                                                  top: Radius.circular(
+                                                      16)),
+                                          child: product.imageUrl !=
+                                                      null &&
+                                                  product.imageUrl!
+                                                      .isNotEmpty
                                               ? Image.network(
                                                   product.imageUrl!,
                                                   height: 110,
                                                   width: double.infinity,
                                                   fit: BoxFit.cover,
-                                                  errorBuilder: (c, e, s) =>
-                                                      _imagePlaceholder(),
+                                                  errorBuilder:
+                                                      (c, e, s) =>
+                                                          _imagePlaceholder(),
                                                 )
                                               : _imagePlaceholder(),
                                         ),
                                         Padding(
-                                          padding: const EdgeInsets.all(10),
+                                          padding:
+                                              const EdgeInsets.all(10),
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
@@ -506,7 +539,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Text(
                                                 product.name,
                                                 style: GoogleFonts.poppins(
-                                                    fontWeight: FontWeight.w600,
+                                                    fontWeight:
+                                                        FontWeight.w600,
                                                     fontSize: 13),
                                                 maxLines: 1,
                                                 overflow:
@@ -515,14 +549,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Text(
                                                 "KSh ${product.price.toStringAsFixed(0)}",
                                                 style: GoogleFonts.poppins(
-                                                    color: Colors.green[700],
-                                                    fontWeight: FontWeight.bold,
+                                                    color:
+                                                        Colors.green[700],
+                                                    fontWeight:
+                                                        FontWeight.bold,
                                                     fontSize: 13),
                                               ),
-                                              // Rating stars
                                               if (product.averageRating !=
                                                       null &&
-                                                  product.averageRating! > 0)
+                                                  product.averageRating! >
+                                                      0)
                                                 Row(
                                                   children: [
                                                     ...List.generate(
@@ -532,7 +568,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                                 product
                                                                     .averageRating!
                                                                     .floor()
-                                                            ? Icons.star_rounded
+                                                            ? Icons
+                                                                .star_rounded
                                                             : (i <
                                                                     product
                                                                         .averageRating!
@@ -544,12 +581,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                                         size: 12,
                                                       ),
                                                     ),
-                                                    const SizedBox(width: 3),
+                                                    const SizedBox(
+                                                        width: 3),
                                                     Text(
                                                       product.averageRating!
-                                                          .toStringAsFixed(1),
-                                                      style:
-                                                          GoogleFonts.poppins(
+                                                          .toStringAsFixed(
+                                                              1),
+                                                      style: GoogleFonts
+                                                          .poppins(
                                                               fontSize: 10,
                                                               color: Colors
                                                                   .grey[600]),
@@ -569,7 +608,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 28),
 
-                // 🌿 Why choose us
+                // Why FreshFarm
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
@@ -619,7 +658,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _statCard(String emoji, String title, String subtitle) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        padding:
+            const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -649,7 +689,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _reasonTile(String emoji, String title, String subtitle) {
+  Widget _reasonTile(
+      String emoji, String title, String subtitle) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),

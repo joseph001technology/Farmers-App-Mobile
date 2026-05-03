@@ -14,7 +14,7 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  // Payment method: 'mpesa' or 'pod' (pay on delivery)
+  // 'mpesa' or 'pod' (pay on delivery)
   String _paymentMethod = 'mpesa';
 
   @override
@@ -45,13 +45,14 @@ class _CartScreenState extends State<CartScreen> {
                           color: Colors.grey[700])),
                   const SizedBox(height: 8),
                   Text("Add some fresh products!",
-                      style:
-                          GoogleFonts.poppins(color: Colors.grey[500])),
+                      style: GoogleFonts.poppins(
+                          color: Colors.grey[500])),
                 ],
               ),
             )
           : Column(
               children: [
+                // Cart items list
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.all(12),
@@ -73,6 +74,7 @@ class _CartScreenState extends State<CartScreen> {
                           padding: const EdgeInsets.all(10),
                           child: Row(
                             children: [
+                              // Product image
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: item.product.imageUrl != null &&
@@ -82,24 +84,14 @@ class _CartScreenState extends State<CartScreen> {
                                         width: 60,
                                         height: 60,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (c, e, s) => Container(
-                                          width: 60,
-                                          height: 60,
-                                          color: Colors.green[100],
-                                          child: const Icon(Icons.grass,
-                                              color: Colors.green),
-                                        ),
+                                        errorBuilder: (c, e, s) =>
+                                            _placeholder(),
                                       )
-                                    : Container(
-                                        width: 60,
-                                        height: 60,
-                                        color: Colors.green[100],
-                                        child: const Icon(Icons.grass,
-                                            color: Colors.green),
-                                      ),
+                                    : _placeholder(),
                               ),
                               const SizedBox(width: 12),
 
+                              // Name + price
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment:
@@ -125,6 +117,7 @@ class _CartScreenState extends State<CartScreen> {
                                 ),
                               ),
 
+                              // Quantity controls
                               Column(
                                 children: [
                                   Row(
@@ -134,13 +127,14 @@ class _CartScreenState extends State<CartScreen> {
                                         onTap: () => cart
                                             .decreaseQty(item.product.id),
                                         child: Container(
-                                          padding: const EdgeInsets.all(4),
+                                          padding:
+                                              const EdgeInsets.all(4),
                                           decoration: BoxDecoration(
                                             color: Colors.green[50],
                                             shape: BoxShape.circle,
                                             border: Border.all(
-                                                color:
-                                                    Colors.green.shade200),
+                                                color: Colors
+                                                    .green.shade200),
                                           ),
                                           child: const Icon(Icons.remove,
                                               size: 16,
@@ -160,7 +154,8 @@ class _CartScreenState extends State<CartScreen> {
                                         onTap: () => cart
                                             .increaseQty(item.product.id),
                                         child: Container(
-                                          padding: const EdgeInsets.all(4),
+                                          padding:
+                                              const EdgeInsets.all(4),
                                           decoration: BoxDecoration(
                                             color: Colors.green[700],
                                             shape: BoxShape.circle,
@@ -174,10 +169,12 @@ class _CartScreenState extends State<CartScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   GestureDetector(
-                                    onTap: () =>
-                                        cart.removeItem(item.product.id),
-                                    child: const Icon(Icons.delete_outline,
-                                        color: Colors.red, size: 20),
+                                    onTap: () => cart
+                                        .removeItem(item.product.id),
+                                    child: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                        size: 20),
                                   ),
                                 ],
                               ),
@@ -189,7 +186,7 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                 ),
 
-                // 🔥 Payment method + Total + Checkout
+                // Bottom — payment toggle + total + checkout
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -205,11 +202,13 @@ class _CartScreenState extends State<CartScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Payment method toggle
+                      // Payment method label
                       Text("Payment Method",
                           style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w600, fontSize: 14)),
                       const SizedBox(height: 10),
+
+                      // Toggle options
                       Row(
                         children: [
                           _paymentOption(
@@ -232,12 +231,14 @@ class _CartScreenState extends State<CartScreen> {
                       const Divider(),
                       const SizedBox(height: 10),
 
+                      // Total row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text("Total",
                               style: GoogleFonts.poppins(
-                                  fontSize: 16, color: Colors.grey[700])),
+                                  fontSize: 16,
+                                  color: Colors.grey[700])),
                           Text(
                             "KSh ${cart.totalPrice.toStringAsFixed(0)}",
                             style: GoogleFonts.poppins(
@@ -248,25 +249,25 @@ class _CartScreenState extends State<CartScreen> {
                         ],
                       ),
                       const SizedBox(height: 14),
+
+                      // Checkout button
                       SizedBox(
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton.icon(
                           onPressed: () async {
-                            final cartProvider = Provider.of<CartProvider>(
-                                context,
-                                listen: false);
+                            final cartProvider =
+                                Provider.of<CartProvider>(context,
+                                    listen: false);
 
-                            final items =
-                                cartProvider.items.values.map((item) {
-                              return {
-                                "product": item.product.id,
-                                "quantity": item.quantity,
-                              };
-                            }).toList();
+                            final items = cartProvider.items.values
+                                .map((item) => {
+                                      "product": item.product.id,
+                                      "quantity": item.quantity,
+                                    })
+                                .toList();
 
                             try {
-                              // Create order with payment method
                               final response =
                                   await ApiService.post("/orders/", {
                                 "items": items,
@@ -278,7 +279,8 @@ class _CartScreenState extends State<CartScreen> {
                                 final data = jsonDecode(response.body);
                                 final orderId = data['id'];
                                 final totalPrice = double.tryParse(
-                                        data['total_price'].toString()) ??
+                                        data['total_price']
+                                            .toString()) ??
                                     cartProvider.totalPrice;
 
                                 cartProvider.clearCart();
@@ -286,31 +288,35 @@ class _CartScreenState extends State<CartScreen> {
                                 if (!context.mounted) return;
 
                                 if (_paymentMethod == 'pod') {
-                                  // Pay on Delivery — no payment screen needed
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  // Pay on Delivery — no payment screen
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
                                     SnackBar(
-                                      content: Row(
-                                        children: [
-                                          const Icon(Icons.check_circle,
-                                              color: Colors.white),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              "Order #$orderId placed! Pay KSh ${totalPrice.toStringAsFixed(0)} on delivery.",
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 13),
-                                            ),
+                                      content: Row(children: [
+                                        const Icon(Icons.check_circle,
+                                            color: Colors.white),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            "Order #$orderId placed! Pay KSh ${totalPrice.toStringAsFixed(0)} on delivery.",
+                                            style:
+                                                GoogleFonts.poppins(
+                                                    fontSize: 13),
                                           ),
-                                        ],
-                                      ),
-                                      backgroundColor: Colors.green[700],
-                                      behavior: SnackBarBehavior.floating,
+                                        ),
+                                      ]),
+                                      backgroundColor:
+                                          Colors.green[700],
+                                      behavior:
+                                          SnackBarBehavior.floating,
                                       duration:
                                           const Duration(seconds: 4),
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
-                                              BorderRadius.circular(12)),
-                                      margin: const EdgeInsets.all(16),
+                                              BorderRadius.circular(
+                                                  12)),
+                                      margin:
+                                          const EdgeInsets.all(16),
                                     ),
                                   );
                                   Navigator.pop(context);
@@ -327,17 +333,22 @@ class _CartScreenState extends State<CartScreen> {
                                   );
                                 }
                               } else {
-                                final error = jsonDecode(response.body);
+                                final error =
+                                    jsonDecode(response.body);
                                 if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(
                                   SnackBar(
-                                      content: Text(error.toString())),
+                                      content:
+                                          Text(error.toString())),
                                 );
                               }
                             } catch (e) {
                               if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Error: $e")),
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(
+                                SnackBar(
+                                    content: Text("Error: $e")),
                               );
                             }
                           },
@@ -360,7 +371,8 @@ class _CartScreenState extends State<CartScreen> {
                                 : Colors.green[700],
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
+                                borderRadius:
+                                    BorderRadius.circular(14)),
                           ),
                         ),
                       ),
@@ -369,6 +381,15 @@ class _CartScreenState extends State<CartScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      width: 60,
+      height: 60,
+      color: Colors.green[100],
+      child: const Icon(Icons.grass, color: Colors.green),
     );
   }
 
@@ -389,7 +410,9 @@ class _CartScreenState extends State<CartScreen> {
             color: isSelected ? Colors.green[50] : Colors.grey[50],
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? Colors.green[600]! : Colors.grey[300]!,
+              color: isSelected
+                  ? Colors.green[600]!
+                  : Colors.grey[300]!,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -417,11 +440,9 @@ class _CartScreenState extends State<CartScreen> {
                 ],
               ),
               const SizedBox(height: 3),
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                    fontSize: 10, color: Colors.grey[600]),
-              ),
+              Text(subtitle,
+                  style: GoogleFonts.poppins(
+                      fontSize: 10, color: Colors.grey[600])),
             ],
           ),
         ),

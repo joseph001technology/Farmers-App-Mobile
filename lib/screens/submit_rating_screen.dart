@@ -13,7 +13,7 @@ class SubmitRatingScreen extends StatefulWidget {
 }
 
 class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
-  // Map productId -> selected star rating
+  // Map productId -> selected star rating (0 = not yet rated)
   final Map<int, int> _ratings = {};
   final Map<int, TextEditingController> _comments = {};
   bool _isSubmitting = false;
@@ -21,7 +21,6 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize ratings and comment controllers for each item
     for (final item in widget.order.items ?? []) {
       _ratings[item.productId] = 0;
       _comments[item.productId] = TextEditingController();
@@ -37,15 +36,14 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   }
 
   Future<void> _submitRatings() async {
-    // Ensure all products have been rated
-    final unrated =
-        _ratings.values.where((r) => r == 0).length;
+    final unrated = _ratings.values.where((r) => r == 0).length;
     if (unrated > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              "Please rate all $unrated product${unrated == 1 ? '' : 's'} before submitting.",
-              style: GoogleFonts.poppins()),
+            "Please rate all $unrated product${unrated == 1 ? '' : 's'} before submitting.",
+            style: GoogleFonts.poppins(),
+          ),
           backgroundColor: Colors.orange[700],
           behavior: SnackBarBehavior.floating,
         ),
@@ -112,7 +110,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Header
+          // Header banner
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -175,7 +173,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
+                            color: Colors.white, strokeWidth: 2),
+                      )
                     : const Icon(Icons.send_rounded),
                 label: Text(
                   _isSubmitting ? "Submitting..." : "Submit Reviews",
@@ -191,6 +190,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                 ),
               ),
             ),
+
           const SizedBox(height: 30),
         ],
       ),
@@ -231,7 +231,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
 
           const SizedBox(height: 12),
 
-          // Star rating selector
+          // Star selector
           Row(
             children: [
               Text("Your rating: ",
@@ -245,7 +245,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                     onTap: () => setState(
                         () => _ratings[item.productId] = starValue),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 3),
                       child: Icon(
                         starValue <= selectedRating
                             ? Icons.star_rounded

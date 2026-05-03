@@ -1,43 +1,69 @@
- 
 class Product {
   final int id;
   final String name;
-  final String description;
   final double price;
+  final String description;
   final String? imageUrl;
   final String? unit;
-  final String? farmer;
   final String? category;
   final String? harvestDate;
+  final String? farmerName;
+  final int? stock;
   final double? averageRating;
+  final int? ratingCount;
 
   Product({
     required this.id,
     required this.name,
-    required this.description,
     required this.price,
+    required this.description,
     this.imageUrl,
     this.unit,
-    this.farmer,
     this.category,
     this.harvestDate,
+    this.farmerName,
+    this.stock,
     this.averageRating,
+    this.ratingCount,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'],
+      id: json['id'] ?? 0,
       name: json['name'] ?? '',
-      description: json['description'] ?? '',
       price: double.tryParse(json['price'].toString()) ?? 0.0,
-      imageUrl: json['image'] ?? json['imageUrl'],
-      unit: json['unit'] ?? '',
-      farmer: json['farmer']?.toString(),
+      description: json['description'] ?? '',
+      imageUrl: json['image'] ?? json['image_url'] ?? json['imageUrl'],
+      unit: json['unit'],
       category: json['category'],
       harvestDate: json['harvest_date'],
+      farmerName: json['farmer_name'] ?? json['farmer_username'],
+      stock: json['stock'] != null
+          ? int.tryParse(json['stock'].toString())
+          : null,
       averageRating: json['average_rating'] != null
           ? double.tryParse(json['average_rating'].toString())
           : null,
+      ratingCount: json['rating_count'] != null
+          ? int.tryParse(json['rating_count'].toString())
+          : null,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'description': description,
+      'image': imageUrl,
+      'unit': unit,
+      'category': category,
+      'harvest_date': harvestDate,
+      'farmer_name': farmerName,
+      'stock': stock,
+      'average_rating': averageRating,
+      'rating_count': ratingCount,
+    };
   }
 }

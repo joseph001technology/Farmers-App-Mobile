@@ -1,629 +1,582 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../providers/cart_provider.dart';
-import '../models/product.dart';
-import '../services/product_service.dart';
-import 'product_detail_screen.dart';
-import 'cart_screen.dart';
+import '../services/api_service.dart';
+import '../models/order.dart';
+import 'payment_screen.dart';
+import 'order_detail_screen.dart';
+import 'submit_rating_screen.dart';
 
-class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({super.key});
+class OrdersScreen extends StatefulWidget {
+  const OrdersScreen({super.key});
 
   @override
-  State<ProductsScreen> createState() => _ProductsScreenState();
+  State<OrdersScreen> createState() => _OrdersScreenState();
 }
 
-class _ProductsScreenState extends State<ProductsScreen> {
-  List<Product> products = [];
+class _OrdersScreenState extends State<OrdersScreen>
+    with SingleTickerProviderStateMixin {
+  List<Order> orders = [];
   bool isLoading = true;
   String errorMessage = '';
-  String selectedCategory = 'All';
-  String searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
-
-  final List<Map<String, String>> categories = [
-    {'label': 'All', 'emoji': '🌿'},
-    {'label': 'Vegetables', 'emoji': '🥬'},
-    {'label': 'Fruits', 'emoji': '🍎'},
-    {'label': 'Grains', 'emoji': '🌾'},
-    {'label': 'Animal Products', 'emoji': '🥛'},
-    {'label': 'Manure', 'emoji': '🌱'},
-    {'label': 'Others', 'emoji': '📦'},
-  ];
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    fetchProducts();
+    _tabController = TabController(length: 3, vsync: this);
+    fetchOrders();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> fetchProducts() async {
+  Future<void> fetchOrders() async {
     setState(() {
       isLoading = true;
       errorMessage = '';
     });
-
     try {
-      final result = await ProductService.getProducts();
+      final data = await ApiService.get("/orders/");
       setState(() {
-        products = result;
+        orders =
+            (data as List).map((json) => Order.fromJson(json)).toList();
         isLoading = false;
       });
     } catch (e) {
       setState(() {
-        errorMessage = "Connection error: $e";
+        errorMessage = "Could not load orders: $e";
         isLoading = false;
       });
     }
   }
 
-  List<Product> get filteredProducts {
-    List<Product> result = products;
+  Future<void> _deleteOrder(Order order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18)),
+        title: Text('Cancel Order?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(
+          'Order #${order.id} (KSh ${order.totalPrice.toStringAsFixed(0)}) will be cancelled and removed.',
+          style:
+              GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Keep',
+                style: GoogleFonts.poppins(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Cancel Order',
+                style: GoogleFonts.poppins(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
 
-    // Filter by category — prefer the real category field, fallback to name matching
-    if (selectedCategory != 'All') {
-      result = result.where((p) {
-        // Use real category field if available
-        if (p.category != null && p.category!.isNotEmpty) {
-          return p.category!.toLowerCase() ==
-              selectedCategory.toLowerCase();
-        }
-        // Fallback: name-based heuristic
-        final name = p.name.toLowerCase();
-        switch (selectedCategory) {
-          case 'Vegetables':
-            return name.contains('carrot') ||
-                name.contains('tomato') ||
-                name.contains('cabbage') ||
-                name.contains('spinach') ||
-                name.contains('kale') ||
-                name.contains('onion') ||
-                name.contains('pepper') ||
-                name.contains('vegetable');
-          case 'Fruits':
-            return name.contains('mango') ||
-                name.contains('banana') ||
-                name.contains('apple') ||
-                name.contains('orange') ||
-                name.contains('avocado') ||
-                name.contains('fruit');
-          case 'Grains':
-            return name.contains('maize') ||
-                name.contains('wheat') ||
-                name.contains('rice') ||
-                name.contains('grain') ||
-                name.contains('sorghum') ||
-                name.contains('millet') ||
-                name.contains('potato');
-          case 'Animal Products':
-            return name.contains('milk') ||
-                name.contains('egg') ||
-                name.contains('meat') ||
-                name.contains('honey') ||
-                name.contains('chicken') ||
-                name.contains('beef');
-          case 'Manure':
-            return name.contains('manure') ||
-                name.contains('compost') ||
-                name.contains('fertilizer');
-          default:
-            return true;
-        }
-      }).toList();
+    if (confirmed != true) return;
+
+    try {
+      HapticFeedback.mediumImpact();
+      await ApiService.delete("/orders/${order.id}/");
+      setState(() => orders.removeWhere((o) => o.id == order.id));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Text('Order #${order.id} cancelled',
+                style: GoogleFonts.poppins(fontSize: 13)),
+          ]),
+          backgroundColor: Colors.green[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not cancel order: $e',
+              style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
     }
-
-    // Live search filter — searches name and description
-    if (searchQuery.isNotEmpty) {
-      final q = searchQuery.toLowerCase();
-      result = result.where((p) {
-        return p.name.toLowerCase().contains(q) ||
-            p.description.toLowerCase().contains(q) ||
-            (p.category?.toLowerCase().contains(q) ?? false);
-      }).toList();
-    }
-
-    return result;
   }
 
-  String shortDescription(String text) {
-    final words = text.split(' ');
-    if (words.length <= 15) return text;
-    return '${words.take(15).join(' ')}...';
+  String _formatDate(String raw) {
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      const months = [
+        '',
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      return "${dt.day} ${months[dt.month]} ${dt.year}  •  "
+          "${dt.hour.toString().padLeft(2, '0')}:"
+          "${dt.minute.toString().padLeft(2, '0')}";
+    } catch (_) {
+      return raw;
+    }
   }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'paid':
+        return Colors.green;
+      case 'delivered':
+        return Colors.blue;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'paid':
+        return Icons.check_circle_rounded;
+      case 'delivered':
+        return Icons.local_shipping_rounded;
+      default:
+        return Icons.access_time_rounded;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'paid':
+        return 'Paid';
+      case 'delivered':
+        return 'Delivered';
+      default:
+        return 'Pending';
+    }
+  }
+
+  List<Order> _filtered(String status) =>
+      orders.where((o) => o.status == status).toList();
 
   @override
   Widget build(BuildContext context) {
-    final cart = Provider.of<CartProvider>(context);
-    final displayed = filteredProducts;
+    final pending = _filtered('pending');
+    final paid = _filtered('paid');
+    final delivered = _filtered('delivered');
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F9F0),
       appBar: AppBar(
-        title: Text(
-          "Today's Harvest",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
+        title: Text("My Orders",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        actions: [
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_cart),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CartScreen()),
-                  );
-                },
-              ),
-              if (cart.totalItems > 0)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      cart.totalItems.toString(),
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 10),
-                    ),
-                  ),
-                ),
-            ],
-          )
-        ],
+        backgroundColor: Colors.white,
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.green[700],
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: Colors.green[700],
+          labelStyle: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600, fontSize: 13),
+          tabs: [
+            Tab(text: "Pending (${pending.length})"),
+            Tab(text: "Paid (${paid.length})"),
+            Tab(text: "Delivered (${delivered.length})"),
+          ],
+        ),
       ),
-
-      body: Column(
-        children: [
-          // 🔍 Search bar — now LIVE, not readOnly
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() => searchQuery = value.trim());
-              },
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: "Search products...",
-                hintStyle: GoogleFonts.poppins(fontSize: 14),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => searchQuery = '');
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-
-          // Search result count
-          if (searchQuery.isNotEmpty)
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "${displayed.length} result${displayed.length == 1 ? '' : 's'} for \"$searchQuery\"",
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, color: Colors.grey[600]),
-                ),
-              ),
-            ),
-
-          // 📦 Category chips
-          SizedBox(
-            height: 44,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final cat = categories[index];
-                final isSelected = selectedCategory == cat['label'];
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => selectedCategory = cat['label']!);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? Colors.green[700]
-                          : Colors.green[50],
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? Colors.green[700]!
-                            : Colors.green[200]!,
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.green))
+          : errorMessage.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.wifi_off,
+                          size: 60, color: Colors.grey),
+                      const SizedBox(height: 12),
+                      Text(errorMessage,
+                          style:
+                              GoogleFonts.poppins(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: fetchOrders,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text("Retry"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      "${cat['emoji']} ${cat['label']}",
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                        color:
-                            isSelected ? Colors.white : Colors.green[800],
-                      ),
-                    ),
+                    ],
                   ),
-                );
-              },
-            ),
-          ),
+                )
+              : Column(
+                  children: [
+                    // ── Summary banner ───────────────────────────────
+                    Container(
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green[700]!,
+                            Colors.green[400]!
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          )
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceAround,
+                        children: [
+                          _summaryItem("Total", "${orders.length}",
+                              Icons.receipt_long),
+                          _divider(),
+                          _summaryItem(
+                              "Pending",
+                              "${pending.length}",
+                              Icons.access_time,
+                              color: Colors.orange[200]!),
+                          _divider(),
+                          _summaryItem("Paid", "${paid.length}",
+                              Icons.check_circle,
+                              color: Colors.greenAccent),
+                        ],
+                      ),
+                    ),
 
-          const SizedBox(height: 8),
-
-          // 🔥 Products grid
-          Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : errorMessage.isNotEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                    // ── Tab views ────────────────────────────────────
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: fetchOrders,
+                        color: Colors.green,
+                        child: TabBarView(
+                          controller: _tabController,
                           children: [
-                            Text(errorMessage,
-                                style: const TextStyle(color: Colors.red)),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: fetchProducts,
-                              child: const Text("Retry"),
-                            ),
+                            _buildList(pending,
+                                showPayButton: true,
+                                showDeleteButton: true),
+                            _buildList(paid),
+                            _buildList(delivered,
+                                showRateButton: true),
                           ],
                         ),
-                      )
-                    : displayed.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  searchQuery.isNotEmpty
-                                      ? '🔍'
-                                      : (selectedCategory == 'All'
-                                          ? '🌿'
-                                          : categories.firstWhere((c) =>
-                                              c['label'] ==
-                                              selectedCategory)['emoji']!),
-                                  style: const TextStyle(fontSize: 48),
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
+
+  Widget _summaryItem(String label, String value, IconData icon,
+      {Color color = Colors.white}) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 4),
+        Text(value,
+            style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold)),
+        Text(label,
+            style: GoogleFonts.poppins(
+                color: Colors.white70, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _divider() =>
+      Container(height: 40, width: 1, color: Colors.white24);
+
+  Widget _buildList(
+    List<Order> list, {
+    bool showPayButton = false,
+    bool showDeleteButton = false,
+    bool showRateButton = false,
+  }) {
+    if (list.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inbox_rounded, size: 60, color: Colors.green[200]),
+            const SizedBox(height: 12),
+            Text("No orders here",
+                style: GoogleFonts.poppins(
+                    color: Colors.grey[600], fontSize: 16)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final order = list[index];
+        final color = _statusColor(order.status);
+
+        return GestureDetector(
+          // ✅ Passes the full Order object — matches OrderDetailScreen constructor
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OrderDetailScreen(order: order),
+            ),
+          ),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Status icon bubble
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(_statusIcon(order.status),
+                            color: color, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Order ID + date + payment badge
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Order #${order.id}",
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15)),
+                            const SizedBox(height: 2),
+                            Text(_formatDate(order.createdAt),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: Colors.grey[500])),
+                            // Payment method badge
+                            if (order.paymentMethod != null) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius:
+                                      BorderRadius.circular(8),
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  searchQuery.isNotEmpty
-                                      ? "No results for \"$searchQuery\""
-                                      : "No $selectedCategory available",
+                                child: Text(
+                                  order.paymentMethod == 'pod'
+                                      ? '💵 Pay on Delivery'
+                                      : '📱 M-Pesa',
                                   style: GoogleFonts.poppins(
-                                      color: Colors.grey[600]),
+                                      fontSize: 10,
+                                      color: Colors.blue[700],
+                                      fontWeight: FontWeight.w500),
                                 ),
-                                if (searchQuery.isNotEmpty)
-                                  TextButton(
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => searchQuery = '');
-                                    },
-                                    child: Text("Clear search",
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.green[700])),
-                                  ),
-                              ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+
+                      // Price + status badge
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            "KSh ${order.totalPrice.toStringAsFixed(0)}",
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: Colors.green[800]),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: color.withOpacity(0.4)),
                             ),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: fetchProducts,
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: GridView.builder(
-                                itemCount: displayed.length,
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  childAspectRatio: 0.72,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final product = displayed[index];
+                            child: Text(
+                              _statusLabel(order.status),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: color,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
 
-                                  return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ProductDetailScreen(
-                                              product: product),
-                                        ),
-                                      );
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Colors.black12,
-                                            blurRadius: 3,
-                                            offset: Offset(0, 2),
-                                          )
-                                        ],
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Stack(
-                                            children: [
-                                              ClipRRect(
-                                                borderRadius:
-                                                    const BorderRadius
-                                                        .vertical(
-                                                        top: Radius.circular(
-                                                            12)),
-                                                child: product.imageUrl !=
-                                                            null &&
-                                                        product.imageUrl!
-                                                            .isNotEmpty
-                                                    ? Image.network(
-                                                        product.imageUrl!,
-                                                        height: 110,
-                                                        width:
-                                                            double.infinity,
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (context,
-                                                                error,
-                                                                stackTrace) =>
-                                                            Container(
-                                                          height: 110,
-                                                          color: Colors
-                                                              .green[100],
-                                                          child: const Center(
-                                                            child: Icon(
-                                                                Icons.image,
-                                                                color: Colors
-                                                                    .green),
-                                                          ),
-                                                        ),
-                                                      )
-                                                    : Container(
-                                                        height: 110,
-                                                        color:
-                                                            Colors.green[100],
-                                                        child: const Center(
-                                                          child: Icon(
-                                                              Icons.grass,
-                                                              color: Colors
-                                                                  .green),
-                                                        ),
-                                                      ),
-                                              ),
-                                              // Category badge
-                                              if (product.category != null &&
-                                                  product.category!.isNotEmpty)
-                                                Positioned(
-                                                  top: 6,
-                                                  left: 6,
-                                                  child: Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.green[700]!
-                                                          .withOpacity(0.85),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                    ),
-                                                    child: Text(
-                                                      product.category!,
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                        fontSize: 9,
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              Positioned(
-                                                right: 6,
-                                                top: 6,
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    ScaffoldMessenger.of(
-                                                            context)
-                                                        .showSnackBar(
-                                                      const SnackBar(
-                                                          content: Text(
-                                                              "Wishlist coming soon")),
-                                                    );
-                                                  },
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                            4),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.black
-                                                          .withOpacity(0.3),
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.favorite_border,
-                                                      color: Colors.white,
-                                                      size: 16,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-
-                                          Padding(
-                                            padding: const EdgeInsets.all(8),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  product.name,
-                                                  style:
-                                                      GoogleFonts.poppins(
-                                                    fontSize: 13,
-                                                    fontWeight:
-                                                        FontWeight.w600,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  "KSh ${product.price.toStringAsFixed(0)}",
-                                                  style:
-                                                      GoogleFonts.poppins(
-                                                    fontSize: 13,
-                                                    color: Colors.green[800],
-                                                    fontWeight:
-                                                        FontWeight.bold,
-                                                  ),
-                                                ),
-                                                // Rating stars
-                                                if (product.averageRating !=
-                                                        null &&
-                                                    product.averageRating! > 0)
-                                                  Row(
-                                                    children: [
-                                                      ...List.generate(
-                                                        5,
-                                                        (i) => Icon(
-                                                          i <
-                                                                  product
-                                                                      .averageRating!
-                                                                      .floor()
-                                                              ? Icons
-                                                                  .star_rounded
-                                                              : (i <
-                                                                      product
-                                                                          .averageRating!
-                                                                  ? Icons
-                                                                      .star_half_rounded
-                                                                  : Icons
-                                                                      .star_outline_rounded),
-                                                          color: Colors.amber,
-                                                          size: 12,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 3),
-                                                      Text(
-                                                        product.averageRating!
-                                                            .toStringAsFixed(1),
-                                                        style: GoogleFonts
-                                                            .poppins(
-                                                                fontSize: 10,
-                                                                color: Colors
-                                                                    .grey[600]),
-                                                      ),
-                                                    ],
-                                                  )
-                                                else
-                                                  Text(
-                                                    shortDescription(
-                                                        product.description),
-                                                    style:
-                                                        GoogleFonts.poppins(
-                                                      fontSize: 10,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                const SizedBox(height: 6),
-
-                                                Align(
-                                                  alignment:
-                                                      Alignment.centerRight,
-                                                  child: GestureDetector(
-                                                    behavior:
-                                                        HitTestBehavior
-                                                            .opaque,
-                                                    onTap: () {
-                                                      cart.addToCart(product);
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                              "${product.name} added 🛒"),
-                                                          duration:
-                                                              const Duration(
-                                                                  seconds: 1),
-                                                        ),
-                                                      );
-                                                    },
-                                                    child: Container(
-                                                      padding:
-                                                          const EdgeInsets
-                                                              .all(8),
-                                                      decoration:
-                                                          BoxDecoration(
-                                                        color:
-                                                            Colors.green[700],
-                                                        shape:
-                                                            BoxShape.circle,
-                                                      ),
-                                                      child: const Icon(
-                                                        Icons.add,
-                                                        color: Colors.white,
-                                                        size: 18,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                  // ── Action buttons ───────────────────────────────
+                  if (showPayButton ||
+                      showDeleteButton ||
+                      showRateButton) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        // Pay via M-Pesa (pending orders)
+                        if (showPayButton)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PaymentScreen(
+                                      orderId: order.id,
+                                      totalPrice: order.totalPrice,
                                     ),
-                                  );
-                                },
+                                  ),
+                                );
+                                fetchOrders();
+                              },
+                              icon: const Text("📱",
+                                  style: TextStyle(fontSize: 15)),
+                              label: Text("Pay via M-Pesa",
+                                  style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[700],
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10),
                               ),
                             ),
                           ),
+
+                        // Cancel order (pending orders)
+                        if (showDeleteButton) ...[
+                          if (showPayButton)
+                            const SizedBox(width: 10),
+                          SizedBox(
+                            height: 42,
+                            child: OutlinedButton(
+                              onPressed: () => _deleteOrder(order),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red[600],
+                                side: BorderSide(
+                                    color: Colors.red[300]!),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.cancel_outlined,
+                                      size: 16, color: Colors.red[600]),
+                                  const SizedBox(width: 4),
+                                  Text('Cancel',
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          color: Colors.red[600])),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        // Rate & Review (delivered orders)
+                        if (showRateButton)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      SubmitRatingScreen(order: order),
+                                ),
+                              ),
+                              icon: const Icon(Icons.star_rounded,
+                                  size: 18),
+                              label: Text("Rate & Review",
+                                  style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.amber[600],
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
