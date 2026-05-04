@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
           phoneInput.replaceAll('+', '').replaceAll(' ', '');
 
       if (phoneStr.startsWith('0')) {
-        phoneStr = '254' + phoneStr.substring(1);
+        phoneStr = '254${phoneStr.substring(1)}';
       }
 
       final response = await http.post(

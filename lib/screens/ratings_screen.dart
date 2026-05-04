@@ -17,6 +17,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
   List<Rating> ratings = [];
   bool isLoading = true;
   double averageRating = 0;
+  String errorMessage = '';
 
   @override
   void initState() {
@@ -25,20 +26,23 @@ class _RatingsScreenState extends State<RatingsScreen> {
   }
 
   Future<void> _loadRatings() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = '';
+    });
     try {
       if (widget.productId != null) {
-        // Product-specific ratings — returns List<Rating>
         final result =
             await RatingService.getProductRatings(widget.productId!);
         final total =
             result.fold<double>(0, (sum, r) => sum + r.rating);
         setState(() {
           ratings = result;
-          averageRating = result.isEmpty ? 0 : total / result.length;
+          averageRating =
+              result.isEmpty ? 0 : total / result.length;
           isLoading = false;
         });
       } else {
-        // Farmer ratings — returns FarmerRatingSummary
         final summary = await RatingService.getFarmerRatings();
         setState(() {
           ratings = summary.ratings;
@@ -46,8 +50,11 @@ class _RatingsScreenState extends State<RatingsScreen> {
           isLoading = false;
         });
       }
-    } catch (_) {
-      setState(() => isLoading = false);
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
     }
   }
 
@@ -65,220 +72,251 @@ class _RatingsScreenState extends State<RatingsScreen> {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.refresh), onPressed: _loadRatings),
+        ],
       ),
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Colors.green))
-          : ratings.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text("⭐", style: TextStyle(fontSize: 60)),
-                      const SizedBox(height: 16),
-                      Text(
-                        "No reviews yet",
-                        style: GoogleFonts.poppins(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        "Be the first to leave a review!",
-                        style:
-                            GoogleFonts.poppins(color: Colors.grey[600]),
-                      ),
-                    ],
+          : errorMessage.isNotEmpty
+              ? _errorView()
+              : ratings.isEmpty
+                  ? _emptyView()
+                  : _reviewsList(),
+    );
+  }
+
+  Widget _errorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
+          const SizedBox(height: 12),
+          Text("Could not load reviews",
+              style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(errorMessage,
+                style:
+                    GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _loadRatings,
+            icon: const Icon(Icons.refresh),
+            label: const Text("Retry"),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[700],
+                foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text("⭐", style: TextStyle(fontSize: 60)),
+          const SizedBox(height: 16),
+          Text("No reviews yet",
+              style: GoogleFonts.poppins(
+                  fontSize: 18, fontWeight: FontWeight.bold)),
+          Text("Be the first to leave a review!",
+              style: GoogleFonts.poppins(color: Colors.grey[600])),
+        ],
+      ),
+    );
+  }
+
+  Widget _reviewsList() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // ── Summary card ──────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.amber[700]!, Colors.amber[500]!],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    averageRating.toStringAsFixed(1),
+                    style: GoogleFonts.poppins(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    // ── Summary card ──────────────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.amber[700]!,
-                            Colors.amber[500]!
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
+                  Row(
+                    children: List.generate(
+                      5,
+                      (i) => Icon(
+                        i < averageRating.floor()
+                            ? Icons.star_rounded
+                            : (i < averageRating
+                                ? Icons.star_half_rounded
+                                : Icons.star_outline_rounded),
+                        color: Colors.white,
+                        size: 20,
                       ),
-                      child: Row(
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${ratings.length} review${ratings.length == 1 ? '' : 's'}",
+                    style: GoogleFonts.poppins(
+                        color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              // Distribution bars
+              Column(
+                children: List.generate(5, (i) {
+                  final star = 5 - i;
+                  final count =
+                      ratings.where((r) => r.rating == star).length;
+                  final pct = ratings.isEmpty
+                      ? 0.0
+                      : count / ratings.length;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Text("$star",
+                            style: GoogleFonts.poppins(
+                                color: Colors.white, fontSize: 12)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.star,
+                            color: Colors.white, size: 12),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          width: 80,
+                          height: 6,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              backgroundColor: Colors.white30,
+                              valueColor:
+                                  const AlwaysStoppedAnimation(
+                                      Colors.white),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text("$count",
+                            style: GoogleFonts.poppins(
+                                color: Colors.white70, fontSize: 11)),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+
+        // ── Individual review cards ───────────────────────────────
+        ...ratings.map(
+          (r) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.green[100],
+                      child: Text(
+                        (r.consumerName ?? "U")[0].toUpperCase(),
+                        style: GoogleFonts.poppins(
+                            color: Colors.green[800],
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                averageRating.toStringAsFixed(1),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 48,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white),
-                              ),
-                              Row(
-                                children: List.generate(
-                                  5,
-                                  (i) => Icon(
-                                    i < averageRating.floor()
-                                        ? Icons.star_rounded
-                                        : (i < averageRating
-                                            ? Icons.star_half_rounded
-                                            : Icons.star_outline_rounded),
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "${ratings.length} review${ratings.length == 1 ? '' : 's'}",
-                                style: GoogleFonts.poppins(
-                                    color: Colors.white70, fontSize: 13),
-                              ),
-                            ],
+                          Text(
+                            r.consumerName ?? "Anonymous",
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14),
                           ),
-                          const Spacer(),
-                          // Rating distribution bars
-                          Column(
-                            children: List.generate(5, (i) {
-                              final star = 5 - i;
-                              final count = ratings
-                                  .where((r) => r.rating == star)
-                                  .length;
-                              final pct = ratings.isEmpty
-                                  ? 0.0
-                                  : count / ratings.length;
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 2),
-                                child: Row(
-                                  children: [
-                                    Text("$star",
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.white,
-                                            fontSize: 12)),
-                                    const SizedBox(width: 4),
-                                    const Icon(Icons.star,
-                                        color: Colors.white, size: 12),
-                                    const SizedBox(width: 6),
-                                    SizedBox(
-                                      width: 80,
-                                      height: 6,
-                                      child: ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(3),
-                                        child: LinearProgressIndicator(
-                                          value: pct,
-                                          backgroundColor: Colors.white30,
-                                          valueColor:
-                                              const AlwaysStoppedAnimation(
-                                                  Colors.white),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text("$count",
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.white70,
-                                            fontSize: 11)),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ),
+                          if (r.productName != null)
+                            Text(
+                              r.productName!,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey[500]),
+                            ),
                         ],
                       ),
                     ),
-
-                    // ── Individual review cards ───────────────────────
-                    ...ratings.map(
-                      (r) => Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            )
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor: Colors.green[100],
-                                  child: Text(
-                                    (r.consumerName ?? "U")[0]
-                                        .toUpperCase(),
-                                    style: GoogleFonts.poppins(
-                                        color: Colors.green[800],
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        r.consumerName ?? "Anonymous",
-                                        style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14),
-                                      ),
-                                      if (r.productName != null)
-                                        Text(
-                                          r.productName!,
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 11,
-                                              color: Colors.grey[500]),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Row(
-                                  children: List.generate(
-                                    5,
-                                    (i) => Icon(
-                                      i < r.rating
-                                          ? Icons.star_rounded
-                                          : Icons.star_outline_rounded,
-                                      color: Colors.amber,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (r.comment != null &&
-                                r.comment!.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Text(
-                                r.comment!,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: Colors.grey[700],
-                                    height: 1.5),
-                              ),
-                            ],
-                          ],
+                    // Star display
+                    Row(
+                      children: List.generate(
+                        5,
+                        (i) => Icon(
+                          i < r.rating
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          color: Colors.amber,
+                          size: 16,
                         ),
                       ),
                     ),
                   ],
                 ),
+                if (r.comment != null && r.comment!.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    r.comment!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                        height: 1.5),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

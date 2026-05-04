@@ -219,7 +219,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               child: Image.asset(
                                 'assets/images/logo.png',
                                 fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(
+                                errorBuilder: (_, _, _) => const Icon(
                                     Icons.eco,
                                     size: 50,
                                     color: _green),
