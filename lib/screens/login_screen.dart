@@ -106,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
 
                 Text(
-                  "Welcome back to FreshFarm",
+                  "Welcome back to AgriFlow",
                   style: GoogleFonts.poppins(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
