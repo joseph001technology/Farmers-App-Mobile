@@ -5,15 +5,28 @@ class Product {
   final String description;
   final String? imageUrl;
   final String? unit;
-  final String? category;
+  final String? category;      // backend slug: 'animal_products', 'vegetables' …
   final String? harvestDate;
   final String? farmerName;
   final int? farmerId;
   final String? farmerPhone;
   final String? farmerLocation;
-  final int? stock;
+  final int? stock;            // maps to backend field `quantity`
   final double? averageRating;
   final int? ratingCount;
+
+  // Human-readable category label
+  String get categoryLabel {
+    switch (category?.toLowerCase()) {
+      case 'vegetables':        return 'Vegetables';
+      case 'fruits':            return 'Fruits';
+      case 'grains':            return 'Grains';
+      case 'animal_products':   return 'Animal Products';
+      case 'manure':            return 'Manure';
+      case 'others':            return 'Others';
+      default:                  return category ?? '';
+    }
+  }
 
   Product({
     required this.id,
@@ -34,77 +47,58 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    // ── Safely parse farmer field ─────────────────────────────────
-    // Backend may return farmer as:
-    //   • an int  →  42
-    //   • a string that is purely numeric  →  "42"
-    //   • a string like "jose (254742906228)"
-    //   • a map  →  { "id": 1, "username": "jose", "phone": "..." }
-    //   • null
+    // ── Farmer field ────────────────────────────────────────────────
+    // Backend serialiser returns: "jose (254742906228)"
     int? farmerId;
     String? farmerName;
     String? farmerPhone;
 
     final rawFarmer = json['farmer'];
-
     if (rawFarmer is int) {
       farmerId = rawFarmer;
     } else if (rawFarmer is Map) {
-      // Nested farmer object
-      farmerId = rawFarmer['id'];
-      farmerName = rawFarmer['username'] ??
-          rawFarmer['name'] ??
-          rawFarmer['farmer_name'];
+      farmerId   = rawFarmer['id'];
+      farmerName = rawFarmer['username'] ?? rawFarmer['name'];
       farmerPhone = rawFarmer['phone'] ?? rawFarmer['phone_number'];
     } else if (rawFarmer is String) {
-      // Try to parse as a plain integer string first
       final asInt = int.tryParse(rawFarmer);
       if (asInt != null) {
         farmerId = asInt;
       } else {
-        // Format: "name (phone)" e.g. "jose (254742906228)"
-        final parenMatch =
-            RegExp(r'^(.*?)\s*\((\d+)\)\s*$').firstMatch(rawFarmer);
-        if (parenMatch != null) {
-          farmerName = parenMatch.group(1)?.trim();
-          farmerPhone = parenMatch.group(2);
+        // "name (phone)" pattern
+        final m = RegExp(r'^(.*?)\s*\((\d+)\)\s*$').firstMatch(rawFarmer);
+        if (m != null) {
+          farmerName  = m.group(1)?.trim();
+          farmerPhone = m.group(2);
         } else {
-          // Just treat the whole string as the farmer name
           farmerName = rawFarmer.trim();
         }
       }
     }
 
-    // Prefer explicit farmer_name / farmer_username fields if present
-    final explicitFarmerName =
-        json['farmer_name'] ?? json['farmer_username'];
-    if (explicitFarmerName != null &&
-        explicitFarmerName.toString().isNotEmpty) {
-      farmerName = explicitFarmerName.toString();
+    // Explicit farmer_name / farmer_username fields take priority
+    final explName = json['farmer_name'] ?? json['farmer_username'];
+    if (explName != null && explName.toString().isNotEmpty) {
+      farmerName = explName.toString();
+    }
+    final explPhone = json['farmer_phone'];
+    if (explPhone != null && explPhone.toString().isNotEmpty) {
+      farmerPhone = explPhone.toString();
     }
 
-    final explicitFarmerPhone = json['farmer_phone'];
-    if (explicitFarmerPhone != null &&
-        explicitFarmerPhone.toString().isNotEmpty) {
-      farmerPhone = explicitFarmerPhone.toString();
-    }
-
-    // ── Safely parse stock ────────────────────────────────────────
-    // stock could be an int, a string, or null
+    // ── Stock: backend calls it `quantity` ───────────────────────────
     int? stock;
-    final rawStock = json['stock'];
+    final rawStock = json['quantity'] ?? json['stock'];
     if (rawStock is int) {
       stock = rawStock;
     } else if (rawStock != null) {
       stock = int.tryParse(rawStock.toString());
     }
 
-    // ── Safely parse ratings ──────────────────────────────────────
-    double? averageRating;
+    // ── Ratings ──────────────────────────────────────────────────────
+    double? avgRating;
     final rawAvg = json['average_rating'];
-    if (rawAvg != null) {
-      averageRating = double.tryParse(rawAvg.toString());
-    }
+    if (rawAvg != null) avgRating = double.tryParse(rawAvg.toString());
 
     int? ratingCount;
     final rawCount = json['rating_count'];
@@ -114,6 +108,9 @@ class Product {
       ratingCount = int.tryParse(rawCount.toString());
     }
 
+    // ── Category: store raw slug from backend ────────────────────────
+    final rawCategory = json['category']?.toString();
+
     return Product(
       id: json['id'] ?? 0,
       name: json['name']?.toString() ?? '',
@@ -121,35 +118,33 @@ class Product {
       description: json['description']?.toString() ?? '',
       imageUrl: json['image'] ?? json['image_url'] ?? json['imageUrl'],
       unit: json['unit']?.toString(),
-      category: json['category']?.toString(),
+      category: rawCategory,
       harvestDate: json['harvest_date']?.toString(),
       farmerName: farmerName,
       farmerId: farmerId,
       farmerPhone: farmerPhone,
       farmerLocation: json['farmer_location']?.toString(),
       stock: stock,
-      averageRating: averageRating,
+      averageRating: avgRating,
       ratingCount: ratingCount,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'price': price,
-      'description': description,
-      'image': imageUrl,
-      'unit': unit,
-      'category': category,
-      'harvest_date': harvestDate,
-      'farmer_name': farmerName,
-      'farmer_id': farmerId,
-      'farmer_phone': farmerPhone,
-      'farmer_location': farmerLocation,
-      'stock': stock,
-      'average_rating': averageRating,
-      'rating_count': ratingCount,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'price': price,
+    'description': description,
+    'image': imageUrl,
+    'unit': unit,
+    'category': category,
+    'harvest_date': harvestDate,
+    'farmer_name': farmerName,
+    'farmer_id': farmerId,
+    'farmer_phone': farmerPhone,
+    'farmer_location': farmerLocation,
+    'quantity': stock,
+    'average_rating': averageRating,
+    'rating_count': ratingCount,
+  };
 }
