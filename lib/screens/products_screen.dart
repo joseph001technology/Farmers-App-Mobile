@@ -18,19 +18,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<Product> products = [];
   bool isLoading = true;
   String errorMessage = '';
-  String selectedCategory = 'all';   // use backend slugs
+  String selectedCategory = 'all';
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  // label → backend slug
   final List<Map<String, String>> categories = [
-    {'label': 'All',            'emoji': '🌿', 'slug': 'all'},
-    {'label': 'Vegetables',     'emoji': '🥬', 'slug': 'vegetables'},
-    {'label': 'Fruits',         'emoji': '🍎', 'slug': 'fruits'},
-    {'label': 'Grains',         'emoji': '🌾', 'slug': 'grains'},
-    {'label': 'Animal Products','emoji': '🥛', 'slug': 'animal_products'},
-    {'label': 'Manure',         'emoji': '🌱', 'slug': 'manure'},
-    {'label': 'Others',         'emoji': '📦', 'slug': 'others'},
+    {'label': 'All',                  'emoji': '🌿', 'slug': 'all'},
+    {'label': 'Fresh Produce',        'emoji': '🥬', 'slug': 'fresh_produce'},
+    {'label': 'Grains & Seeds',       'emoji': '🌾', 'slug': 'grains_seeds'},
+    {'label': 'Livestock & Poultry',  'emoji': '🐓', 'slug': 'livestock'},
+    {'label': 'Animal Derivatives',   'emoji': '🥛', 'slug': 'animal_derivatives'},
+    {'label': 'Value-Added Goods',    'emoji': '🫙', 'slug': 'processed_goods'},
+    {'label': 'Nursery & Floral',     'emoji': '🌸', 'slug': 'nursery_floral'},
+    {'label': 'Inputs & Amendments',  'emoji': '🧪', 'slug': 'inputs_chemicals'},
+    {'label': 'Feed & Nutrition',     'emoji': '🌽', 'slug': 'animal_feed'},
+    {'label': 'Heavy Machinery',      'emoji': '🚜', 'slug': 'machinery'},
+    {'label': 'Tools & Hardware',     'emoji': '🔧', 'slug': 'tools_hardware'},
+    {'label': 'Timber & Bio-Resources','emoji': '🪵', 'slug': 'timber_bio'},
+    {'label': 'Farm Services',        'emoji': '🤝', 'slug': 'services'},
   ];
 
   @override
@@ -58,7 +63,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<Product> get filteredProducts {
     List<Product> result = products;
 
-    // ── Category filter using backend slugs ─────────────────────────
     if (selectedCategory != 'all') {
       result = result.where((p) {
         final cat = p.category?.toLowerCase() ?? '';
@@ -66,13 +70,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
       }).toList();
     }
 
-    // ── Live search ─────────────────────────────────────────────────
     if (searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
       result = result.where((p) =>
         p.name.toLowerCase().contains(q) ||
         p.description.toLowerCase().contains(q) ||
-        (p.categoryLabel.toLowerCase().contains(q)) ||
+        p.categoryLabel.toLowerCase().contains(q) ||
         (p.farmerName?.toLowerCase().contains(q) ?? false)
       ).toList();
     }
@@ -86,9 +89,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return '${words.take(12).join(' ')}...';
   }
 
+  // Returns the emoji for the currently selected category
+  String get _selectedEmoji =>
+      categories.firstWhere(
+        (c) => c['slug'] == selectedCategory,
+        orElse: () => {'emoji': '📦'},
+      )['emoji']!;
+
+  String get _selectedLabel =>
+      categories.firstWhere(
+        (c) => c['slug'] == selectedCategory,
+        orElse: () => {'label': selectedCategory},
+      )['label']!;
+
   @override
   Widget build(BuildContext context) {
-    final cart   = Provider.of<CartProvider>(context);
+    final cart      = Provider.of<CartProvider>(context);
     final displayed = filteredProducts;
 
     return Scaffold(
@@ -170,7 +186,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               itemCount: categories.length,
               itemBuilder: (context, i) {
-                final cat = categories[i];
+                final cat        = categories[i];
                 final isSelected = selectedCategory == cat['slug'];
                 return GestureDetector(
                   onTap: () => setState(() => selectedCategory = cat['slug']!),
@@ -182,14 +198,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       color: isSelected ? Colors.green[700] : Colors.green[50],
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? Colors.green[700]! : Colors.green[200]!),
+                          color: isSelected
+                              ? Colors.green[700]!
+                              : Colors.green[200]!),
                     ),
                     child: Text(
                       '${cat['emoji']} ${cat['label']}',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected ? Colors.white : Colors.green[800],
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                        color:
+                            isSelected ? Colors.white : Colors.green[800],
                       ),
                     ),
                   ),
@@ -203,7 +223,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
           // ── Product grid ──────────────────────────────────────────
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.green))
+                ? const Center(
+                    child: CircularProgressIndicator(color: Colors.green))
                 : errorMessage.isNotEmpty
                     ? Center(
                         child: Column(
@@ -225,19 +246,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  searchQuery.isNotEmpty ? '🔍' :
-                                  (selectedCategory == 'all' ? '🌿' :
-                                   categories.firstWhere(
-                                     (c) => c['slug'] == selectedCategory,
-                                     orElse: () => {'emoji': '📦'})['emoji']!),
+                                  searchQuery.isNotEmpty
+                                      ? '🔍'
+                                      : _selectedEmoji,
                                   style: const TextStyle(fontSize: 48),
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
                                   searchQuery.isNotEmpty
                                       ? 'No results for "$searchQuery"'
-                                      : 'No ${categories.firstWhere((c) => c['slug'] == selectedCategory, orElse: () => {'label': selectedCategory})['label']} available',
-                                  style: GoogleFonts.poppins(color: Colors.grey[600]),
+                                      : 'No $_selectedLabel available',
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.grey[600]),
                                   textAlign: TextAlign.center,
                                 ),
                                 if (searchQuery.isNotEmpty)
@@ -247,7 +267,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       setState(() => searchQuery = '');
                                     },
                                     child: Text('Clear search',
-                                        style: GoogleFonts.poppins(color: Colors.green[700])),
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.green[700])),
                                   ),
                               ],
                             ),
@@ -268,14 +289,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 itemBuilder: (context, index) {
                                   final product = displayed[index];
                                   return GestureDetector(
-                                    onTap: () => Navigator.push(context,
+                                    onTap: () => Navigator.push(
+                                        context,
                                         MaterialPageRoute(
-                                            builder: (_) =>
-                                                ProductDetailScreen(product: product))),
+                                            builder: (_) => ProductDetailScreen(
+                                                product: product))),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: Colors.white,
-                                        borderRadius: BorderRadius.circular(14),
+                                        borderRadius:
+                                            BorderRadius.circular(14),
                                         boxShadow: const [
                                           BoxShadow(
                                               color: Colors.black12,
@@ -284,7 +307,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                         ],
                                       ),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           // Image
                                           Stack(
@@ -292,38 +316,51 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                               ClipRRect(
                                                 borderRadius:
                                                     const BorderRadius.vertical(
-                                                        top: Radius.circular(14)),
-                                                child: product.imageUrl != null &&
-                                                        product.imageUrl!.isNotEmpty
+                                                        top: Radius.circular(
+                                                            14)),
+                                                child: product.imageUrl !=
+                                                            null &&
+                                                        product.imageUrl!
+                                                            .isNotEmpty
                                                     ? Image.network(
                                                         product.imageUrl!,
                                                         height: 110,
                                                         width: double.infinity,
                                                         fit: BoxFit.cover,
-                                                        errorBuilder: (c, e, s) =>
-                                                            _imgPlaceholder(),
+                                                        errorBuilder:
+                                                            (c, e, s) =>
+                                                                _imgPlaceholder(),
                                                       )
                                                     : _imgPlaceholder(),
                                               ),
                                               // Category badge
-                                              if (product.categoryLabel.isNotEmpty)
+                                              if (product
+                                                  .categoryLabel.isNotEmpty)
                                                 Positioned(
-                                                  top: 6, left: 6,
+                                                  top: 6,
+                                                  left: 6,
                                                   child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                        horizontal: 6, vertical: 2),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2),
                                                     decoration: BoxDecoration(
                                                       color: Colors.green[700]!
                                                           .withOpacity(0.85),
                                                       borderRadius:
-                                                          BorderRadius.circular(8),
+                                                          BorderRadius.circular(
+                                                              8),
                                                     ),
                                                     child: Text(
                                                       product.categoryLabel,
-                                                      style: GoogleFonts.poppins(
-                                                          fontSize: 9,
-                                                          color: Colors.white,
-                                                          fontWeight: FontWeight.w600),
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                              fontSize: 9,
+                                                              color:
+                                                                  Colors.white,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600),
                                                     ),
                                                   ),
                                                 ),
@@ -340,64 +377,87 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                 Text(product.name,
                                                     style: GoogleFonts.poppins(
                                                         fontSize: 13,
-                                                        fontWeight: FontWeight.w600),
+                                                        fontWeight:
+                                                            FontWeight.w600),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis),
+                                                    overflow:
+                                                        TextOverflow.ellipsis),
                                                 if (product.farmerName != null)
-                                                  Text('by ${product.farmerName}',
+                                                  Text(
+                                                      'by ${product.farmerName}',
                                                       style: GoogleFonts.poppins(
                                                           fontSize: 10,
-                                                          color: Colors.green[600]),
+                                                          color: Colors
+                                                              .green[600]),
                                                       maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis),
+                                                      overflow:
+                                                          TextOverflow.ellipsis),
                                                 Text(
                                                   'KSh ${product.price.toStringAsFixed(0)}',
                                                   style: GoogleFonts.poppins(
                                                       fontSize: 13,
                                                       color: Colors.green[800],
-                                                      fontWeight: FontWeight.bold),
+                                                      fontWeight:
+                                                          FontWeight.bold),
                                                 ),
                                                 // Stars
-                                                if (product.averageRating != null &&
+                                                if (product.averageRating !=
+                                                        null &&
                                                     product.averageRating! > 0)
                                                   Row(
                                                     children: [
-                                                      ...List.generate(5, (i) => Icon(
-                                                        i < product.averageRating!.floor()
-                                                            ? Icons.star_rounded
-                                                            : (i < product.averageRating!
-                                                                ? Icons.star_half_rounded
-                                                                : Icons.star_outline_rounded),
-                                                        color: Colors.amber,
-                                                        size: 12,
-                                                      )),
+                                                      ...List.generate(
+                                                          5,
+                                                          (i) => Icon(
+                                                                i < product
+                                                                        .averageRating!
+                                                                        .floor()
+                                                                    ? Icons
+                                                                        .star_rounded
+                                                                    : (i < product
+                                                                            .averageRating!
+                                                                        ? Icons
+                                                                            .star_half_rounded
+                                                                        : Icons
+                                                                            .star_outline_rounded),
+                                                                color: Colors
+                                                                    .amber,
+                                                                size: 12,
+                                                              )),
                                                       const SizedBox(width: 3),
                                                       Text(
                                                         product.averageRating!
                                                             .toStringAsFixed(1),
-                                                        style: GoogleFonts.poppins(
-                                                            fontSize: 9,
-                                                            color: Colors.grey[600]),
+                                                        style:
+                                                            GoogleFonts.poppins(
+                                                                fontSize: 9,
+                                                                color: Colors
+                                                                    .grey[600]),
                                                       ),
                                                     ],
                                                   )
                                                 else
                                                   Text(
-                                                    shortDescription(product.description),
+                                                    shortDescription(
+                                                        product.description),
                                                     style: GoogleFonts.poppins(
                                                         fontSize: 10,
-                                                        color: Colors.grey[600]),
+                                                        color:
+                                                            Colors.grey[600]),
                                                     maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 const SizedBox(height: 4),
                                                 // Add to cart
                                                 Align(
-                                                  alignment: Alignment.centerRight,
+                                                  alignment:
+                                                      Alignment.centerRight,
                                                   child: GestureDetector(
                                                     onTap: () {
                                                       cart.addToCart(product);
-                                                      ScaffoldMessenger.of(context)
+                                                      ScaffoldMessenger.of(
+                                                              context)
                                                           .showSnackBar(SnackBar(
                                                         content: Text(
                                                             '${product.name} added 🛒'),
@@ -405,16 +465,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                             seconds: 1),
                                                         backgroundColor:
                                                             Colors.green[700],
-                                                        behavior:
-                                                            SnackBarBehavior.floating,
+                                                        behavior: SnackBarBehavior
+                                                            .floating,
                                                       ));
                                                     },
                                                     child: Container(
-                                                      padding: const EdgeInsets.all(7),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              7),
                                                       decoration: BoxDecoration(
-                                                          color: Colors.green[700],
-                                                          shape: BoxShape.circle),
-                                                      child: const Icon(Icons.add,
+                                                          color:
+                                                              Colors.green[700],
+                                                          shape:
+                                                              BoxShape.circle),
+                                                      child: const Icon(
+                                                          Icons.add,
                                                           color: Colors.white,
                                                           size: 18),
                                                     ),

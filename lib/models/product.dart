@@ -5,26 +5,31 @@ class Product {
   final String description;
   final String? imageUrl;
   final String? unit;
-  final String? category;      // backend slug: 'animal_products', 'vegetables' …
+  final String? category;
   final String? harvestDate;
   final String? farmerName;
   final int? farmerId;
   final String? farmerPhone;
   final String? farmerLocation;
-  final int? stock;            // maps to backend field `quantity`
+  final int? stock;
   final double? averageRating;
   final int? ratingCount;
 
-  // Human-readable category label
   String get categoryLabel {
     switch (category?.toLowerCase()) {
-      case 'vegetables':        return 'Vegetables';
-      case 'fruits':            return 'Fruits';
-      case 'grains':            return 'Grains';
-      case 'animal_products':   return 'Animal Products';
-      case 'manure':            return 'Manure';
-      case 'others':            return 'Others';
-      default:                  return category ?? '';
+      case 'fresh_produce':       return 'Fresh Produce';
+      case 'grains_seeds':        return 'Grains & Seeds';
+      case 'livestock':           return 'Livestock & Poultry';
+      case 'animal_derivatives':  return 'Animal Derivatives';
+      case 'processed_goods':     return 'Value-Added Goods';
+      case 'nursery_floral':      return 'Nursery & Floral';
+      case 'inputs_chemicals':    return 'Inputs & Amendments';
+      case 'animal_feed':         return 'Feed & Nutrition';
+      case 'machinery':           return 'Heavy Machinery';
+      case 'tools_hardware':      return 'Tools & Hardware';
+      case 'timber_bio':          return 'Timber & Bio-Resources';
+      case 'services':            return 'Farm Services';
+      default:                    return category ?? '';
     }
   }
 
@@ -47,8 +52,8 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    // ── Farmer field ────────────────────────────────────────────────
-    // Backend serialiser returns: "jose (254742906228)"
+    // ── Farmer field ─────────────────────────────────────────────────
+    // Serializer returns: "jose (254742906228)"
     int? farmerId;
     String? farmerName;
     String? farmerPhone;
@@ -57,8 +62,8 @@ class Product {
     if (rawFarmer is int) {
       farmerId = rawFarmer;
     } else if (rawFarmer is Map) {
-      farmerId   = rawFarmer['id'];
-      farmerName = rawFarmer['username'] ?? rawFarmer['name'];
+      farmerId    = rawFarmer['id'];
+      farmerName  = rawFarmer['username'] ?? rawFarmer['name'];
       farmerPhone = rawFarmer['phone'] ?? rawFarmer['phone_number'];
     } else if (rawFarmer is String) {
       final asInt = int.tryParse(rawFarmer);
@@ -86,7 +91,7 @@ class Product {
       farmerPhone = explPhone.toString();
     }
 
-    // ── Stock: backend calls it `quantity` ───────────────────────────
+    // ── Stock ────────────────────────────────────────────────────────
     int? stock;
     final rawStock = json['quantity'] ?? json['stock'];
     if (rawStock is int) {
@@ -108,43 +113,41 @@ class Product {
       ratingCount = int.tryParse(rawCount.toString());
     }
 
-    // ── Category: store raw slug from backend ────────────────────────
-    final rawCategory = json['category']?.toString();
-
     return Product(
-      id: json['id'] ?? 0,
-      name: json['name']?.toString() ?? '',
-      price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
-      description: json['description']?.toString() ?? '',
-      imageUrl: json['image'] ?? json['image_url'] ?? json['imageUrl'],
-      unit: json['unit']?.toString(),
-      category: rawCategory,
-      harvestDate: json['harvest_date']?.toString(),
-      farmerName: farmerName,
-      farmerId: farmerId,
-      farmerPhone: farmerPhone,
+      id:            json['id'] ?? 0,
+      name:          json['name']?.toString() ?? '',
+      price:         double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
+      description:   json['description']?.toString() ?? '',
+      // image_url (absolute) must come before image (relative path)
+      imageUrl:      json['image_url'] ?? json['image'] ?? json['imageUrl'],
+      unit:          json['unit']?.toString(),
+      category:      json['category']?.toString(),
+      harvestDate:   json['harvest_date']?.toString(),
+      farmerName:    farmerName,
+      farmerId:      farmerId,
+      farmerPhone:   farmerPhone,
       farmerLocation: json['farmer_location']?.toString(),
-      stock: stock,
+      stock:         stock,
       averageRating: avgRating,
-      ratingCount: ratingCount,
+      ratingCount:   ratingCount,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'price': price,
-    'description': description,
-    'image': imageUrl,
-    'unit': unit,
-    'category': category,
-    'harvest_date': harvestDate,
-    'farmer_name': farmerName,
-    'farmer_id': farmerId,
-    'farmer_phone': farmerPhone,
+    'id':             id,
+    'name':           name,
+    'price':          price,
+    'description':    description,
+    'image_url':      imageUrl,
+    'unit':           unit,
+    'category':       category,
+    'harvest_date':   harvestDate,
+    'farmer_name':    farmerName,
+    'farmer_id':      farmerId,
+    'farmer_phone':   farmerPhone,
     'farmer_location': farmerLocation,
-    'quantity': stock,
+    'quantity':       stock,
     'average_rating': averageRating,
-    'rating_count': ratingCount,
+    'rating_count':   ratingCount,
   };
 }
