@@ -31,7 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Colors matching FreshFarm theme
+  // Colors matching AgriFlow theme
   static const _green = Color(0xFF2E7D32);
   static const _greenLight = Color(0xFF4CAF50);
   static const _greenBg = Color(0xFFF1F8E9);
@@ -236,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                             ),
                           ),
                           Text(
-                            'Join FreshFarm today',
+                            'Join AgriFlow today',
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               color: Colors.grey[600],

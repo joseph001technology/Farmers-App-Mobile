@@ -132,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               const Text("🌾 ",
                                   style: TextStyle(fontSize: 26)),
                               Text(
-                                "FreshFarm",
+                                "AgriFlow",
                                 style: GoogleFonts.playfairDisplay(
                                     fontSize: 30,
                                     fontWeight: FontWeight.bold,
@@ -413,10 +413,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   const SizedBox(height: 28),
 
-                  // ── WHY FRESHFARM ──────────────────────────────────
+                  // ── WHY AGRIFLOW ──────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text("Why FreshFarm? 🌿",
+                    child: Text("Why AgriFlow? 🌿",
                         style: GoogleFonts.poppins(
                             fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
