@@ -10,6 +10,7 @@ import 'orders_screen.dart';
 import 'profile_edit_screen.dart';
 import 'farmer_dashboard_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'consumer_dashboard_screen.dart'; // ← ADDED
 import 'ratings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -82,6 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final role = AuthService.role ?? "";
     final isFarmer = role == 'farmer';
     final isAdmin = role == 'admin';
+    final isConsumer = !isFarmer && !isAdmin; // ← ADDED
 
     String? fullImageUrl;
     if (profilePhoto != null && profilePhoto!.isNotEmpty) {
@@ -156,7 +158,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 const SizedBox(width: 4),
                                 Text("Edit",
                                     style: GoogleFonts.poppins(
-                                        color: Colors.white, fontSize: 12)),
+                                        color: Colors.white,
+                                        fontSize: 12)),
                               ],
                             ),
                           ),
@@ -165,7 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                       const SizedBox(height: 12),
 
-                      // Profile photo
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -230,7 +232,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
 
-                      // Average rating for farmers
                       if (isFarmer &&
                           averageRating != null &&
                           averageRating! > 0) ...[
@@ -267,7 +268,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 20),
 
-            // Bio card
             if ((bio != null && bio!.isNotEmpty) ||
                 (location != null && location!.isNotEmpty) ||
                 (farmSize != null && farmSize!.isNotEmpty))
@@ -309,7 +309,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 16),
 
-            // Quick stats
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -325,7 +324,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 16),
 
-            // Menu tiles
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
@@ -341,6 +339,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           builder: (_) => const OrdersScreen()),
                     ),
                   ),
+
+                  // ── ADDED: Consumer Dashboard tile ──────────────────
+                  if (isConsumer)
+                    _buildTile(
+                      Icons.dashboard_rounded,
+                      "My Dashboard",
+                      "Spending, top products & farmers",
+                      color: Colors.teal,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const ConsumerDashboardScreen()),
+                      ),
+                    ),
 
                   if (isFarmer)
                     _buildTile(
@@ -410,7 +423,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 24),
 
-            // Logout
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(

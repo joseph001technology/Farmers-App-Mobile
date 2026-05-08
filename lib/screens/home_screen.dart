@@ -8,6 +8,7 @@ import 'product_detail_screen.dart';
 import 'cart_screen.dart';
 import 'farmer_dashboard_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'consumer_dashboard_screen.dart'; // ← ADDED import
 import 'ratings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -52,15 +53,19 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _dashboardScreen(bool isAdmin) =>
-      isAdmin ? const AdminDashboardScreen() : const FarmerDashboardScreen();
+  Widget _dashboardScreen(String role) {
+    if (role == 'admin') return const AdminDashboardScreen();
+    if (role == 'farmer') return const FarmerDashboardScreen();
+    return const ConsumerDashboardScreen(); // ← ADDED: customers get their own dashboard
+  }
 
   @override
   Widget build(BuildContext context) {
-    final username = AuthService.username ?? "Farmer";
+    final username = AuthService.username ?? "User";
     final role = AuthService.role ?? "";
     final isFarmer = role == 'farmer';
     final isAdmin = role == 'admin';
+    final isConsumer = !isFarmer && !isAdmin; // ← ADDED
     final farmerGroups = _byFarmer;
 
     return Scaffold(
@@ -148,38 +153,54 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               _heroBadge(
                                   "🇰🇪  Nairobi, Kenya  •  Farm to Table"),
-                              if (isFarmer || isAdmin)
-                                GestureDetector(
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            _dashboardScreen(isAdmin)),
+                              // ── CHANGED: show dashboard pill for ALL roles ──
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          _dashboardScreen(role)),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    // Different colour per role
+                                    color: isAdmin
+                                        ? Colors.indigo.withOpacity(0.9)
+                                        : isFarmer
+                                            ? Colors.orange.withOpacity(0.9)
+                                            : Colors.teal.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.withOpacity(0.9),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.dashboard,
-                                            color: Colors.white, size: 13),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          isAdmin ? "Admin" : "Dashboard",
-                                          style: GoogleFonts.poppins(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600),
-                                        ),
-                                      ],
-                                    ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isAdmin
+                                            ? Icons.admin_panel_settings
+                                            : isFarmer
+                                                ? Icons.agriculture
+                                                : Icons.dashboard_rounded,
+                                        color: Colors.white,
+                                        size: 13,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isAdmin
+                                            ? "Admin"
+                                            : isFarmer
+                                                ? "Dashboard"
+                                                : "My Dashboard",
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
                                   ),
                                 ),
+                              ),
                             ],
                           ),
                         ],
@@ -222,19 +243,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  // ── Dashboard banner (farmer/admin only) ─────────────
-                  if (isFarmer || isAdmin) ...[
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                  // ── Dashboard banner ─────────────────────────────────
+                  // CHANGED: show for ALL roles, colour/label changes per role
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => _dashboardScreen(role)),
+                      ),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [
-                              Colors.orange[700]!,
-                              Colors.orange[400]!
-                            ],
+                            colors: isAdmin
+                                ? [Colors.indigo[700]!, Colors.indigo[400]!]
+                                : isFarmer
+                                    ? [Colors.orange[700]!, Colors.orange[400]!]
+                                    : [Colors.teal[700]!, Colors.teal[400]!],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -242,18 +270,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Text("📊",
-                                style: TextStyle(fontSize: 28)),
+                            Text(
+                              isAdmin ? "⚙️" : isFarmer ? "📊" : "🛍️",
+                              style: const TextStyle(fontSize: 28),
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     isAdmin
                                         ? "Admin Dashboard"
-                                        : "Farmer Dashboard",
+                                        : isFarmer
+                                            ? "Farmer Dashboard"
+                                            : "My Dashboard",
                                     style: GoogleFonts.poppins(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -262,7 +293,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Text(
                                     isAdmin
                                         ? "Platform analytics & reports"
-                                        : "Track your sales & revenue",
+                                        : isFarmer
+                                            ? "Track your sales & revenue"
+                                            : "Orders, spending & top farmers",
                                     style: GoogleFonts.poppins(
                                         color: Colors.white70,
                                         fontSize: 12),
@@ -274,15 +307,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) =>
-                                        _dashboardScreen(isAdmin)),
+                                    builder: (_) => _dashboardScreen(role)),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
-                                foregroundColor: Colors.orange[700],
+                                foregroundColor: isAdmin
+                                    ? Colors.indigo[700]
+                                    : isFarmer
+                                        ? Colors.orange[700]
+                                        : Colors.teal[700],
                                 shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(10)),
+                                    borderRadius: BorderRadius.circular(10)),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 8),
                               ),
@@ -295,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
-                  ],
+                  ),
 
                   const SizedBox(height: 28),
 
@@ -367,12 +402,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-
-                    // One section per farmer
                     ...farmerGroups.entries.map((entry) {
                       final farmerName = entry.key;
                       final farmerProducts = entry.value;
-                      // Grab extra info from first product
                       final sample = farmerProducts.first;
                       return _farmerSection(
                           farmerName, farmerProducts, sample);
@@ -433,7 +465,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Farmer header card
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
@@ -451,7 +482,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: Colors.green[100],
@@ -482,7 +512,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: GoogleFonts.poppins(
                             fontSize: 12, color: Colors.grey[500]),
                       ),
-                      // Rating if available
                       if (sample.averageRating != null &&
                           sample.averageRating! > 0)
                         Padding(
@@ -512,7 +541,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                // Call / Reviews buttons
                 Column(
                   children: [
                     if (sample.farmerPhone != null)
@@ -532,10 +560,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     const SizedBox(height: 4),
                     OutlinedButton.icon(
+                      // ── CHANGED: pass farmerName so title shows correctly ──
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const RatingsScreen()),
+                            builder: (_) => RatingsScreen(
+                                  farmerName: farmerName,
+                                )),
                       ),
                       icon: const Icon(Icons.star_outline, size: 13),
                       label: const Text("Reviews"),
@@ -558,7 +589,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
         const SizedBox(height: 10),
 
-        // Farmer's products horizontal scroll
         SizedBox(
           height: 210,
           child: ListView.builder(
@@ -626,7 +656,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  // Farmer name under product
                   if (showFarmer && product.farmerName != null)
                     Text(
                       "by ${product.farmerName}",
@@ -643,7 +672,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 13),
                   ),
-                  // Stars if rated
                   if (product.averageRating != null &&
                       product.averageRating! > 0)
                     Row(

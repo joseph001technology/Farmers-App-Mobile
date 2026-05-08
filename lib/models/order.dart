@@ -46,6 +46,9 @@ class Order {
   final String? deliveryAddress;
   final List<OrderItem>? items;
 
+  // ── ADDED: farmer name from backend ─────────────────────────────
+  final String? farmerName;
+
   // Convenience getters used by order_detail_screen
   List<OrderItem> get orderItems => items ?? [];
   bool get isDelivered => status == 'delivered';
@@ -58,10 +61,14 @@ class Order {
     this.paymentMethod,
     this.deliveryAddress,
     this.items,
+    this.farmerName, // ← ADDED
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
-    final List<dynamic>? rawItems = json['items'];
+    // ── CHANGED: also accepts 'order_items' key from backend ────────
+    final List<dynamic>? rawItems =
+        json['order_items'] as List? ?? json['items'] as List?;
+
     return Order(
       id: json['id'] ?? 0,
       status: json['status'] ?? 'pending',
@@ -71,6 +78,9 @@ class Order {
       paymentMethod: json['payment_method'],
       deliveryAddress: json['delivery_address'],
       items: rawItems?.map((i) => OrderItem.fromJson(i)).toList(),
+      // ── ADDED: reads 'farmer_name' or 'farmer' from backend ──────
+      farmerName: json['farmer_name']?.toString() ??
+          json['farmer']?.toString(),
     );
   }
 
