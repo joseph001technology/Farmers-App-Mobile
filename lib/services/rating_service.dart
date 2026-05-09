@@ -3,104 +3,57 @@ import '../helpers/api_helper.dart';
 import '../models/rating.dart';
 
 class RatingService {
-  // ── Fetch ratings for a product ──────────────────────────────────
-  static Future<List<Rating>> getProductRatings(int productId) async {
-    for (final path in [
-      '/ratings/?product=$productId',
-      '/products/$productId/ratings/',
-      '/ratings/product/$productId/',
-    ]) {
-      try {
-        final r = await ApiHelper.get(path);
-        if (r.statusCode == 200) {
-          final body = jsonDecode(r.body);
-          final List raw = body is Map
-              ? (body['results'] ?? body['ratings'] ?? [])
-              : body as List;
-          return raw.map((j) => Rating.fromJson(j)).toList();
-        }
-      } catch (_) {}
+  // ── GET /api/ratings/farmer/<farmer_id>/ ─────────────────────────
+  static Future<FarmerRatingSummary> getFarmerRatingById(int farmerId) async {
+    final res = await ApiHelper.get('/ratings/farmer/$farmerId/');
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return FarmerRatingSummary.fromJson(data);
     }
-    return [];
+    throw Exception('Failed to load farmer ratings (${res.statusCode})');
   }
 
-  // ── Fetch farmer rating summary ──────────────────────────────────
-  static Future<FarmerRatingSummary> getFarmerRatings({int? farmerId}) async {
-    final paths = farmerId != null
-        ? ['/ratings/farmer/$farmerId/', '/ratings/?farmer=$farmerId']
-        : ['/ratings/my-ratings/', '/ratings/mine/', '/ratings/?mine=true'];
-
-    for (final path in paths) {
-      try {
-        final r = await ApiHelper.get(path);
-        if (r.statusCode == 200) {
-          final body = jsonDecode(r.body);
-          if (body is List) {
-            final ratings = body.map((j) => Rating.fromJson(j)).toList();
-            final total = ratings.fold<double>(0, (s, r) => s + r.rating);
-            return FarmerRatingSummary(
-              averageRating: ratings.isEmpty ? 0 : total / ratings.length,
-              totalRatings: ratings.length,
-              ratings: ratings,
-            );
-          }
-          if (body is Map) {
-            if (body['ratings'] != null) {
-              return FarmerRatingSummary.fromJson(body as Map<String, dynamic>);
-            }
-            if (body['results'] != null) {
-              final ratings = (body['results'] as List)
-                  .map((j) => Rating.fromJson(j)).toList();
-              final total = ratings.fold<double>(0, (s, r) => s + r.rating);
-              return FarmerRatingSummary(
-                averageRating: ratings.isEmpty ? 0 : total / ratings.length,
-                totalRatings: ratings.length,
-                ratings: ratings,
-              );
-            }
-          }
-        }
-      } catch (_) {}
+  // ── GET /api/ratings/mine/ ────────────────────────────────────────
+  static Future<List<Rating>> getMyRatings() async {
+    final res = await ApiHelper.get('/ratings/mine/');
+    if (res.statusCode == 200) {
+      final list = jsonDecode(res.body) as List;
+      return list
+          .map((r) => Rating.fromJson(r as Map<String, dynamic>))
+          .toList();
     }
-    return FarmerRatingSummary(averageRating: 0, totalRatings: 0, ratings: []);
+    throw Exception('Failed to load your ratings (${res.statusCode})');
   }
 
-  // ── Submit a rating ──────────────────────────────────────────────
-  // Backend model uses `stars` field (from the serialiser shown in code)
+  // ── POST /api/ratings/ ────────────────────────────────────────────
+  // NOTE: ApiHelper.post takes Map<String, dynamic> — NOT a JSON string
   static Future<void> submitRating({
-    required int productId,
-    required int rating,
-    String? comment,
+    required int farmerId,
+    required int orderId,
+    required int stars,
+    String? review,
   }) async {
-    final body = {
-      'product': productId,
-      'stars': rating,       // backend field name
-      'rating': rating,      // fallback
-      if (comment != null && comment.isNotEmpty) 'comment': comment,
-      if (comment != null && comment.isNotEmpty) 'review': comment,
+    final body = <String, dynamic>{
+      'farmer': farmerId,
+      'order':  orderId,
+      'stars':  stars,
+      if (review != null && review.isNotEmpty) 'review': review,
     };
 
-    for (final path in [
-      '/ratings/', '/ratings', '/products/$productId/ratings/', '/reviews/',
-    ]) {
-      try {
-        final r = await ApiHelper.post(path, body);
-        if (r.statusCode == 200 || r.statusCode == 201 || r.statusCode == 202) {
-          return;
-        }
-        if (r.statusCode == 400) {
-          final err = jsonDecode(r.body);
-          final msg = err is Map
-              ? (err.values.first is List
-                  ? (err.values.first as List).first.toString()
-                  : err.values.first.toString())
-              : r.body;
-          throw Exception(msg);
-        }
-      } catch (e) {
-        if (e is Exception) rethrow;
+    final res = await ApiHelper.post('/ratings/', body);
+
+    if (res.statusCode == 201) return;
+
+    // Surface backend error message to the UI
+    String msg = 'Failed to submit rating (${res.statusCode})';
+    try {
+      final err = jsonDecode(res.body);
+      if (err is Map) {
+        msg = err.values
+            .map((v) => v is List ? v.join(', ') : v.toString())
+            .join('\n');
       }
-    }
-    throw Exception('Could not submit review. Check your connection.');
+    } catch (_) {}
+    throw Exception(msg);
   }
 }
