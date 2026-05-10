@@ -6,7 +6,7 @@ import '../models/order.dart';
 import '../models/rating.dart';
 import '../services/rating_service.dart';
 import 'orders_screen.dart';
-import 'ratings_screen.dart';
+import 'submit_rating_screen.dart';   
 
 class ConsumerDashboardScreen extends StatefulWidget {
   const ConsumerDashboardScreen({super.key});
@@ -43,7 +43,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
     super.dispose();
   }
 
-  // Future<void> so RefreshIndicator.onRefresh is satisfied
   Future<void> _loadAll() async {
     await Future.wait([_loadProfile(), _loadOrders(), _loadRatings()]);
   }
@@ -96,7 +95,19 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
     }
   }
 
-  // ── Derived stats ──────────────────────────────────────────────────
+  // ── Navigate to SubmitRatingScreen (fully open — user picks farmer + order)
+  Future<void> _goAddReview() async {
+    final submitted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        // FIXED: Removed 'const' here to avoid the assertion error during compilation
+        builder: (_) => SubmitRatingScreen(), 
+      ),
+    );
+    if (submitted == true) _loadRatings();
+  }
+
+  // ── Derived stats ────────────────────────────────────────────────────
   double get _totalSpent => _orders
       .where((o) => o.status == 'paid' || o.status == 'delivered')
       .fold(0.0, (s, o) => s + o.totalPrice);
@@ -108,7 +119,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
       .where((o) => o.status == 'pending' || o.status == 'pending_payment')
       .length;
 
-  /// Count item occurrences across all orders → top products
   List<MapEntry<String, int>> get _topProducts {
     final counts = <String, int>{};
     for (final o in _orders) {
@@ -122,7 +132,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
     return sorted.take(5).toList();
   }
 
-  /// Count spend per farmer → top farmers
   List<MapEntry<String, double>> get _topFarmers {
     final spend = <String, double>{};
     for (final o in _orders) {
@@ -136,14 +145,12 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
 
   String _farmerNameFromOrder(Order o) {
     try {
-      // ignore: avoid_dynamic_calls
       final name = (o as dynamic).farmerName as String?;
       if (name != null && name.isNotEmpty) return name;
     } catch (_) {}
     return 'Unknown Farmer';
   }
 
-  /// Monthly spend breakdown (last 6 months)
   List<Map<String, dynamic>> get _monthlySpend {
     final now = DateTime.now();
     return List.generate(6, (i) {
@@ -243,9 +250,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
         ]),
       );
 
-  // ════════════════════════════════════════════════════════════════
-  // OVERVIEW TAB — all original content preserved
-  // ════════════════════════════════════════════════════════════════
   Widget _overviewTab() {
     final username = _profile?['username']?.toString() ?? 'Consumer';
     final phone    = _profile?['phone_number']?.toString();
@@ -257,7 +261,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Profile hero card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -303,10 +306,7 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
               ])),
             ]),
           ),
-
           const SizedBox(height: 16),
-
-          // Stat tiles 2×2
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -325,10 +325,7 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
                   '${_myRatings.length}', Colors.amber),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // Monthly spend bar chart
           if (_orders.isNotEmpty) ...[
             Text('Spending over 6 months',
                 style: GoogleFonts.poppins(
@@ -337,8 +334,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
             _spendBarChart(),
             const SizedBox(height: 20),
           ],
-
-          // Top products preview
           if (_topProducts.isNotEmpty) ...[
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -357,8 +352,6 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
                 e.key, e.value, _topProducts.first.value)),
             const SizedBox(height: 20),
           ],
-
-          // Top farmers preview
           if (_topFarmers.isNotEmpty) ...[
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -373,12 +366,10 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
               ),
             ]),
             const SizedBox(height: 8),
-            ..._topFarmers.take(3).map((e) =>
-                _farmerStatRow(e.key, e.value, _topFarmers.first.value)),
+            ..._topFarmers.take(3).map((e) => _farmerStatRow(
+                e.key, e.value, _topFarmers.first.value)),
             const SizedBox(height: 20),
           ],
-
-          // Quick action tiles
           Text('Quick actions',
               style: GoogleFonts.poppins(
                   fontSize: 16, fontWeight: FontWeight.bold)),
@@ -389,7 +380,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
               label: 'My Orders',
               color: Colors.blue,
               onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const OrdersScreen())),
+                  MaterialPageRoute(
+                      builder: (_) => const OrdersScreen())),
             )),
             const SizedBox(width: 12),
             Expanded(child: _actionTile(
@@ -399,24 +391,18 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
               onTap: () => _tabs.animateTo(2),
             )),
           ]),
-
           const SizedBox(height: 30),
         ],
       ),
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // MY BUYS TAB — fully preserved from original
-  // ════════════════════════════════════════════════════════════════
   Widget _myBuysTab() {
     if (_topProducts.isEmpty) {
       return _emptyState('🛒', 'No purchases yet',
           'Products you order will appear here');
     }
-
     final maxQty = _topProducts.first.value;
-
     return RefreshIndicator(
       onRefresh: _loadOrders,
       child: ListView(
@@ -472,75 +458,100 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // MY REVIEWS TAB — new, replaces Farmers tab
-  // ════════════════════════════════════════════════════════════════
   Widget _myReviewsTab() {
     if (_loadingRatings) {
-      return const Center(child: CircularProgressIndicator(color: Colors.teal));
-    }
-    if (_myRatings.isEmpty) {
-      return _emptyState('📝', 'No reviews yet',
-          "You haven't reviewed any farmers yet");
+      return const Center(
+          child: CircularProgressIndicator(color: Colors.teal));
     }
 
     return RefreshIndicator(
       onRefresh: _loadRatings,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
         children: [
-          // Summary header
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [Colors.amber[700]!, Colors.orange[500]!],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(18),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _goAddReview,
+              icon: const Icon(Icons.add_comment_rounded),
+              label: Text('Add a Review',
+                  style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[700],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-            child: Row(children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${_myRatings.length}',
-                    style: GoogleFonts.poppins(
-                        fontSize: 40, fontWeight: FontWeight.bold,
-                        color: Colors.white, height: 1)),
-                Text('reviews given',
-                    style: GoogleFonts.poppins(
-                        color: Colors.white70, fontSize: 12)),
-              ]),
-              const SizedBox(width: 24),
-              Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('Your avg rating',
-                    style: GoogleFonts.poppins(
-                        color: Colors.white70, fontSize: 12)),
-                Row(children: [
-                  ...List.generate(5, (i) => Icon(
-                    i < _avgStarsGiven.floor()
-                        ? Icons.star_rounded
-                        : (i < _avgStarsGiven
-                            ? Icons.star_half_rounded
-                            : Icons.star_outline_rounded),
-                    color: Colors.white, size: 18,
-                  )),
-                  const SizedBox(width: 6),
-                  Text(_avgStarsGiven.toStringAsFixed(1),
-                      style: GoogleFonts.poppins(
-                          color: Colors.white, fontSize: 15,
-                          fontWeight: FontWeight.bold)),
-                ]),
-                const SizedBox(height: 4),
-                Text('Thank you for supporting local farmers! 🌱',
-                    style: GoogleFonts.poppins(
-                        color: Colors.white70, fontSize: 11)),
-              ])),
-            ]),
           ),
           const SizedBox(height: 16),
-
-          ..._myRatings.map(_reviewCard),
-          const SizedBox(height: 30),
+          if (_myRatings.isEmpty) ...[
+            const SizedBox(height: 40),
+            Center(child: Column(children: [
+              const Text('📝', style: TextStyle(fontSize: 56)),
+              const SizedBox(height: 16),
+              Text('No reviews yet',
+                  style: GoogleFonts.poppins(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              Text("You haven't reviewed any farmers yet",
+                  style: GoogleFonts.poppins(color: Colors.grey[500]),
+                  textAlign: TextAlign.center),
+            ])),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                    colors: [Colors.amber[700]!, Colors.orange[500]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('${_myRatings.length}',
+                      style: GoogleFonts.poppins(
+                          fontSize: 40, fontWeight: FontWeight.bold,
+                          color: Colors.white, height: 1)),
+                  Text('reviews given',
+                      style: GoogleFonts.poppins(
+                          color: Colors.white70, fontSize: 12)),
+                ]),
+                const SizedBox(width: 24),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('Your avg rating',
+                      style: GoogleFonts.poppins(
+                          color: Colors.white70, fontSize: 12)),
+                  Row(children: [
+                    ...List.generate(5, (i) => Icon(
+                      i < _avgStarsGiven.floor()
+                          ? Icons.star_rounded
+                          : (i < _avgStarsGiven
+                              ? Icons.star_half_rounded
+                              : Icons.star_outline_rounded),
+                      color: Colors.white, size: 18,
+                    )),
+                    const SizedBox(width: 6),
+                    Text(_avgStarsGiven.toStringAsFixed(1),
+                        style: GoogleFonts.poppins(
+                            color: Colors.white, fontSize: 15,
+                            fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('Thank you for supporting local farmers! 🌱',
+                      style: GoogleFonts.poppins(
+                          color: Colors.white70, fontSize: 11)),
+                ])),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            ..._myRatings.map(_reviewCard),
+          ],
         ],
       ),
     );
@@ -557,7 +568,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -574,7 +586,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, children: [
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               Text(r.farmerName,
                   style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600, fontSize: 15)),
@@ -582,9 +595,9 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
                   style: GoogleFonts.poppins(
                       fontSize: 11, color: Colors.grey[400])),
             ])),
-            // Stars badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.amber[50],
                 borderRadius: BorderRadius.circular(12),
@@ -596,7 +609,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
                         fontWeight: FontWeight.bold,
                         fontSize: 14, color: Colors.amber[800])),
                 const SizedBox(width: 3),
-                Icon(Icons.star_rounded, color: Colors.amber[700], size: 14),
+                Icon(Icons.star_rounded,
+                    color: Colors.amber[700], size: 14),
               ]),
             ),
           ]),
@@ -604,7 +618,9 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(children: List.generate(5, (i) => Icon(
-            i < r.stars ? Icons.star_rounded : Icons.star_outline_rounded,
+            i < r.stars
+                ? Icons.star_rounded
+                : Icons.star_outline_rounded,
             color: Colors.amber, size: 16,
           ))),
         ),
@@ -620,19 +636,15 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
               ),
               child: Text(r.review!,
                   style: GoogleFonts.poppins(
-                      fontSize: 13, color: Colors.grey[700], height: 1.5),
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis),
+                      fontSize: 13, color: Colors.grey[700],
+                      height: 1.5),
+                  maxLines: 4, overflow: TextOverflow.ellipsis),
             ),
           ),
         const SizedBox(height: 14),
       ]),
     );
   }
-
-  // ════════════════════════════════════════════════════════════════
-  // REUSABLE WIDGETS — all original, zero removed
-  // ════════════════════════════════════════════════════════════════
 
   Widget _statTile(String emoji, String label, String value,
           MaterialColor color) =>
@@ -672,7 +684,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
         decoration: BoxDecoration(
           gradient: LinearGradient(
               colors: [color[700]!, color[400]!],
-              begin: Alignment.topLeft, end: Alignment.bottomRight),
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(
               color: color.withOpacity(0.25),
@@ -686,8 +699,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
               children: [
             Text(title,
                 style: GoogleFonts.poppins(
-                    color: Colors.white, fontWeight: FontWeight.bold,
-                    fontSize: 15)),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold, fontSize: 15)),
             Text(subtitle,
                 style: GoogleFonts.poppins(
                     color: Colors.white70, fontSize: 12)),
@@ -744,7 +757,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
   Widget _farmerStatRow(String name, double spend, double maxSpend) =>
       Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -761,7 +775,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
                       fontWeight: FontWeight.bold))),
           const SizedBox(width: 10),
           Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             Text(name,
                 style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w500, fontSize: 13),
@@ -787,8 +802,8 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
   Widget _spendBarChart() {
     final monthly = _monthlySpend;
     final maxAmt  = monthly.fold<double>(0,
-        (m, e) => (e['amount'] as double) > m ? (e['amount'] as double) : m);
-
+        (m, e) =>
+            (e['amount'] as double) > m ? (e['amount'] as double) : m);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
@@ -797,175 +812,106 @@ class _ConsumerDashboardScreenState extends State<ConsumerDashboardScreen>
           boxShadow: [BoxShadow(
               color: Colors.black.withOpacity(0.04),
               blurRadius: 6, offset: const Offset(0, 2))]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: monthly.map((m) {
             final amt   = (m['amount'] as double);
             final ratio = maxAmt > 0 ? amt / maxAmt : 0.0;
-            final isMax = amt == maxAmt && amt > 0;
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3),
                 child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                   if (amt > 0)
                     Text(_fmt(amt),
                         style: GoogleFonts.poppins(
-                            fontSize: 9, color: Colors.teal[700]),
+                            fontSize: 9,
+                            color: Colors.teal[700]),
                         textAlign: TextAlign.center),
-                  const SizedBox(height: 2),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 600),
-                    height: 80 * ratio.toDouble() + 4,
+                  const SizedBox(height: 4),
+                  Container(
+                    height: ratio * 80 + 2,
                     decoration: BoxDecoration(
-                      color: isMax ? Colors.teal[600] : Colors.teal[200],
-                      borderRadius: BorderRadius.circular(4),
+                      color: ratio == 1.0 ? Colors.teal[700] : Colors.teal[200],
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(4)),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(m['label'] as String,
+                  const SizedBox(height: 8),
+                  Text(m['label'].toString(),
                       style: GoogleFonts.poppins(
-                          fontSize: 10, color: Colors.grey[500])),
+                          fontSize: 10, color: Colors.grey[600])),
                 ]),
               ),
             );
           }).toList(),
         ),
-        if (maxAmt == 0) ...[
-          const SizedBox(height: 8),
-          Center(child: Text('No spending data yet',
-              style: GoogleFonts.poppins(
-                  fontSize: 12, color: Colors.grey[400]))),
-        ],
       ]),
     );
   }
 
   Widget _statusBreakdown() {
-    final statuses = {
-      'pending':   ('⏳', Colors.orange, _pendingCount),
-      'paid':      ('💳', Colors.blue,
-          _orders.where((o) => o.status == 'paid').length),
-      'delivered': ('✅', Colors.green, _deliveredCount),
-    };
+    final statuses = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
+    return Column(children: statuses.map((s) {
+      final count = _orders.where((o) => o.status == s).length;
+      if (count == 0) return const SizedBox();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: _infoCard(
+          icon: s == 'delivered' ? Icons.check_circle_outline : Icons.info_outline,
+          label: s.toUpperCase(),
+          value: '$count',
+          color: s == 'delivered' ? Colors.green : Colors.blueGrey,
+        ),
+      );
+    }).toList());
+  }
+
+  Widget _infoCard({required IconData icon, required String label, required String value, required Color color}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6, offset: const Offset(0, 2))]),
-      child: Column(children: statuses.entries.map((e) {
-        final label = e.key;
-        final emoji = e.value.$1;
-        final color = e.value.$2;
-        final count = e.value.$3;
-        final ratio = _orders.isEmpty ? 0.0 : count / _orders.length;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 16)),
-            const SizedBox(width: 8),
-            SizedBox(width: 70, child: Text(label,
-                style: GoogleFonts.poppins(
-                    fontSize: 12, color: Colors.grey[600]))),
-            Expanded(child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: ratio,
-                backgroundColor: color.withOpacity(0.1),
-                color: color, minHeight: 8,
-              ),
-            )),
-            const SizedBox(width: 8),
-            SizedBox(width: 28, child: Text('$count',
-                style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.bold,
-                    color: color),
-                textAlign: TextAlign.right)),
-          ]),
-        );
-      }).toList()),
+          color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Text(label, style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700])),
+        const Spacer(),
+        Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14)),
+      ]),
     );
   }
 
-  Widget _infoCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required MaterialColor color,
-  }) =>
-      Container(
-        padding: const EdgeInsets.all(16),
+  Widget _actionTile({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 6, offset: const Offset(0, 2))]),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-                color: color[50], borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color[700], size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label,
-                style: GoogleFonts.poppins(
-                    fontSize: 12, color: Colors.grey[500])),
-            Text(value,
-                style: GoogleFonts.poppins(
-                    fontSize: 15, fontWeight: FontWeight.bold,
-                    color: color[700])),
-          ])),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _emptyState(String emoji, String title, String sub) => Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text(emoji, style: const TextStyle(fontSize: 50)),
+          const SizedBox(height: 16),
+          Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 18)),
+          Text(sub, style: GoogleFonts.poppins(color: Colors.grey)),
         ]),
       );
-
-  Widget _actionTile({
-    required IconData icon,
-    required String label,
-    required MaterialColor color,
-    required VoidCallback onTap,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          decoration: BoxDecoration(
-            color: color[50],
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color[200]!),
-          ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-            Icon(icon, color: color[700], size: 26),
-            const SizedBox(height: 6),
-            Text(label,
-                style: GoogleFonts.poppins(
-                    fontSize: 13, fontWeight: FontWeight.w600,
-                    color: color[700])),
-          ]),
-        ),
-      );
-
-  Widget _emptyState(String emoji, String title, String subtitle) =>
-      Center(child: Column(mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-        Text(emoji, style: const TextStyle(fontSize: 60)),
-        const SizedBox(height: 16),
-        Text(title,
-            style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        Text(subtitle,
-            style: GoogleFonts.poppins(color: Colors.grey[600]),
-            textAlign: TextAlign.center),
-      ]));
 }

@@ -15,7 +15,10 @@ import '../services/rating_service.dart';
 ///   SubmitRatingScreen(preselectedFarmerId: 5, preselectedFarmerName: 'John')
 ///   → user picks which delivered order to attach the rating to
 class SubmitRatingScreen extends StatefulWidget {
+  /// Mode A — pass a full order
   final Order? order;
+
+  /// Mode B — pass farmer info, screen loads delivered orders for user to pick
   final int?    preselectedFarmerId;
   final String? preselectedFarmerName;
 
@@ -34,19 +37,22 @@ class SubmitRatingScreen extends StatefulWidget {
 }
 
 class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
+  // ── Form state ─────────────────────────────────────────────────────
   int    _selectedStars = 5;
   final  _reviewCtrl    = TextEditingController();
   bool   _isSubmitting  = false;
   bool   _alreadyRated  = false;
 
+  // ── Mode B state ───────────────────────────────────────────────────
   List<Map<String, dynamic>> _deliveredOrders = [];
   int?    _selectedOrderId;
   int?    _selectedFarmerId;
   String? _selectedFarmerName;
-  bool    _loadingOrders  = false;
-  String  _ordersError    = '';
+  bool    _loadingOrders = false;
+  String  _ordersError   = '';
 
-  List<Map<String, dynamic>> _farmers        = [];
+  // ── Farmer search (Mode B — no preselected farmer) ─────────────────
+  List<Map<String, dynamic>> _farmers      = [];
   bool                       _loadingFarmers = false;
   Map<String, dynamic>?      _pickedFarmer;
 
@@ -54,19 +60,19 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     '', 'Poor 😞', 'Fair 😐', 'Good 🙂', 'Great 😄', 'Excellent 🌟'
   ];
 
-  bool get _isModeA             => widget.order != null;
+  bool get _isModeA => widget.order != null;
   bool get _hasFarmerPreselected => widget.preselectedFarmerId != null;
 
   @override
   void initState() {
     super.initState();
     if (_isModeA) {
+      // Mode A: everything comes from the order
       _selectedFarmerId   = _resolveFarmerIdFromOrder();
       _selectedFarmerName = _resolveFarmerNameFromOrder();
       _selectedOrderId    = widget.order!.id;
     } else {
-      // FIX: set farmer immediately from preselectedFarmerId so _farmerId is
-      // always non-null — the "please select a farmer" snack never fires.
+      // Mode B: load delivered orders + optionally farmers list
       _selectedFarmerId   = widget.preselectedFarmerId;
       _selectedFarmerName = widget.preselectedFarmerName;
       _loadDeliveredOrders();
@@ -80,19 +86,14 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     super.dispose();
   }
 
+  // ── Helpers ────────────────────────────────────────────────────────
   int? _resolveFarmerIdFromOrder() {
-    try {
-      final id = (widget.order! as dynamic).farmerId;
-      if (id != null) return id as int;
-    } catch (_) {}
+    try { final id = (widget.order! as dynamic).farmerId; if (id != null) return id as int; } catch (_) {}
     return null;
   }
 
   String _resolveFarmerNameFromOrder() {
-    try {
-      final n = (widget.order! as dynamic).farmerName as String?;
-      if (n != null && n.isNotEmpty) return n;
-    } catch (_) {}
+    try { final n = (widget.order! as dynamic).farmerName as String?; if (n != null && n.isNotEmpty) return n; } catch (_) {}
     return 'Farmer';
   }
 
@@ -102,53 +103,40 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   int? get _farmerId =>
       _selectedFarmerId ?? (_pickedFarmer?['id'] as num?)?.toInt();
 
-  // FIX: filter orders by preselectedFarmerId so the picker only shows
-  // orders that belong to this farmer.
+  // ── Load delivered orders (Mode B) ────────────────────────────────
   Future<void> _loadDeliveredOrders() async {
     setState(() { _loadingOrders = true; _ordersError = ''; });
     try {
       final res = await ApiHelper.get('/orders/');
       if (res.statusCode == 200) {
         final List raw = jsonDecode(res.body) as List;
-        var delivered = raw
+        final delivered = raw
             .cast<Map<String, dynamic>>()
-            .where((o) => o['status'] == 'delivered' || o['status'] == 'paid')
+            .where((o) =>
+                o['status'] == 'delivered' || o['status'] == 'paid')
             .toList();
-
-        if (_hasFarmerPreselected) {
-          delivered = delivered.where((o) {
-            final orderFarmerId =
-                (o['farmer'] as num?)?.toInt() ??
-                (o['farmer_id'] as num?)?.toInt();
-            return orderFarmerId == widget.preselectedFarmerId;
-          }).toList();
-        }
-
         setState(() { _deliveredOrders = delivered; _loadingOrders = false; });
       } else {
-        setState(() {
-          _ordersError = 'Could not load orders (${res.statusCode})';
-          _loadingOrders = false;
-        });
+        setState(() { _ordersError = 'Could not load orders (${res.statusCode})'; _loadingOrders = false; });
       }
     } catch (e) {
       setState(() { _ordersError = e.toString(); _loadingOrders = false; });
     }
   }
 
+  // ── Load farmers list (Mode B, no preselected farmer) ─────────────
   Future<void> _loadFarmers() async {
     setState(() => _loadingFarmers = true);
     try {
       final res = await ApiHelper.get('/products/');
       if (res.statusCode == 200) {
         final List raw = jsonDecode(res.body) as List;
-        final seen    = <int>{};
+        // Extract unique farmers from products
+        final seen = <int>{};
         final farmers = <Map<String, dynamic>>[];
         for (final p in raw.cast<Map<String, dynamic>>()) {
-          final fId = (p['farmer'] as num?)?.toInt() ??
-              (p['farmer_id'] as num?)?.toInt();
-          final fName = p['farmer_name']?.toString() ??
-              p['farmer_username']?.toString();
+          final fId = (p['farmer'] as num?)?.toInt() ?? (p['farmer_id'] as num?)?.toInt();
+          final fName = p['farmer_name']?.toString() ?? p['farmer_username']?.toString();
           if (fId != null && !seen.contains(fId)) {
             seen.add(fId);
             farmers.add({'id': fId, 'username': fName ?? 'Farmer #$fId'});
@@ -163,13 +151,11 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     }
   }
 
+  // ── Submit ─────────────────────────────────────────────────────────
   Future<void> _submit() async {
     final fId = _farmerId;
     final oId = _selectedOrderId;
 
-    // "please select a farmer" only fires when truly no farmer is known —
-    // unreachable when _hasFarmerPreselected is true because _farmerId is
-    // set in initState above.
     if (fId == null) {
       _snack('Please select a farmer to rate.', isError: true);
       return;
@@ -185,9 +171,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
         farmerId: fId,
         orderId:  oId,
         stars:    _selectedStars,
-        review:   _reviewCtrl.text.trim().isEmpty
-            ? null
-            : _reviewCtrl.text.trim(),
+        review:   _reviewCtrl.text.trim().isEmpty ? null : _reviewCtrl.text.trim(),
       );
       if (!mounted) return;
       _snack('Review submitted! Thank you 🌟');
@@ -214,18 +198,16 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     ));
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // BUILD
+  // ══════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F9F0),
       appBar: AppBar(
-        // FIX: personalise the title when a farmer is preselected
-        title: Text(
-          _hasFarmerPreselected
-              ? 'Rate ${widget.preselectedFarmerName ?? 'Farmer'}'
-              : 'Rate a Farmer',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
+        title: Text('Rate a Farmer',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
@@ -234,33 +216,46 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ── Farmer card ──────────────────────────────────────────
           _farmerCard(),
           const SizedBox(height: 16),
+
+          // ── Mode B: farmer picker (if no preselected farmer) ─────
           if (!_isModeA && !_hasFarmerPreselected) ...[
             _farmerPickerCard(),
             const SizedBox(height: 16),
           ],
+
+          // ── Mode B: order picker ─────────────────────────────────
           if (!_isModeA) ...[
             _orderPickerCard(),
             const SizedBox(height: 16),
           ],
+
+          // ── Mode A: order summary ────────────────────────────────
           if (_isModeA) ...[
             _orderSummaryCard(),
             const SizedBox(height: 16),
           ],
+
+          // ── Already rated notice ─────────────────────────────────
           if (_alreadyRated)
             _noticeBanner(
               icon: Icons.info_outline,
               message: 'You have already rated this order.',
               color: Colors.orange,
             ),
+
+          // ── Rating form ──────────────────────────────────────────
           if (!_alreadyRated) _ratingForm(),
+
           const SizedBox(height: 30),
         ],
       ),
     );
   }
 
+  // ── Farmer profile card ────────────────────────────────────────────
   Widget _farmerCard() {
     final name     = _farmerName;
     final initials = name.isNotEmpty ? name[0].toUpperCase() : '🌾';
@@ -269,14 +264,12 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.green[800]!, Colors.teal[600]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(
             color: Colors.green.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6))],
+            blurRadius: 12, offset: const Offset(0, 6))],
       ),
       padding: const EdgeInsets.all(20),
       child: Column(children: [
@@ -284,7 +277,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           const Text('🌾', style: TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
           Text('Your Farmer',
-              style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+              style: GoogleFonts.poppins(
+                  color: Colors.white70, fontSize: 13)),
         ]),
         const SizedBox(height: 14),
         CircleAvatar(
@@ -335,8 +329,11 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     }
   }
 
+  // ── Farmer picker (Mode B, no preselection) ────────────────────────
   Widget _farmerPickerCard() {
-    if (_loadingFarmers) return _loadingCard('Loading farmers…');
+    if (_loadingFarmers) {
+      return _loadingCard('Loading farmers…');
+    }
     if (_farmers.isEmpty) {
       return _noticeBanner(
         icon: Icons.info_outline,
@@ -363,11 +360,9 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[50],
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             prefixIcon: const Icon(Icons.agriculture_outlined),
@@ -400,24 +395,26 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
+  // ── Order picker (Mode B) ──────────────────────────────────────────
   Widget _orderPickerCard() {
     if (_loadingOrders) return _loadingCard('Loading your orders…');
+
     if (_ordersError.isNotEmpty) {
       return _noticeBanner(
-          icon: Icons.error_outline, message: _ordersError, color: Colors.red);
+        icon: Icons.error_outline,
+        message: _ordersError,
+        color: Colors.red,
+      );
     }
+
     if (_deliveredOrders.isEmpty) {
       return _noticeBanner(
         icon: Icons.receipt_long_outlined,
-        // FIX: more specific message when we know which farmer has no orders
-        message: _hasFarmerPreselected
-            ? 'No delivered orders found for this farmer. '
-              'You can only rate after an order has been delivered.'
-            : 'No delivered orders found. '
-              'You can only rate after an order is delivered.',
+        message: 'No delivered orders found. You can only rate after an order is delivered.',
         color: Colors.orange,
       );
     }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecor(),
@@ -437,11 +434,9 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[50],
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             prefixIcon: const Icon(Icons.receipt_outlined),
@@ -465,6 +460,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
+  // ── Mode A: order items summary ────────────────────────────────────
   Widget _orderSummaryCard() {
     final items = widget.order?.orderItems ?? [];
     if (items.isEmpty) return const SizedBox.shrink();
@@ -485,13 +481,15 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
             Expanded(child: Text(item.productName,
                 style: GoogleFonts.poppins(fontSize: 13))),
             Text('×${item.quantity}',
-                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
+                style: GoogleFonts.poppins(
+                    fontSize: 12, color: Colors.grey[500])),
           ]),
         )),
       ]),
     );
   }
 
+  // ── Rating form ────────────────────────────────────────────────────
   Widget _ratingForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -501,8 +499,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
         border: Border.all(color: Colors.green[100]!),
         boxShadow: [BoxShadow(
             color: Colors.green.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4))],
+            blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('How was your experience?',
@@ -510,8 +507,11 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                 fontWeight: FontWeight.bold, fontSize: 16,
                 color: Colors.green[800])),
         Text('with $_farmerName',
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
+            style: GoogleFonts.poppins(
+                fontSize: 12, color: Colors.grey[500])),
         const SizedBox(height: 20),
+
+        // Stars
         Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -547,7 +547,10 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                     fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ),
+
         const SizedBox(height: 20),
+
+        // Review text
         Text('Your review (optional)',
             style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600])),
         const SizedBox(height: 8),
@@ -558,7 +561,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           textCapitalization: TextCapitalization.sentences,
           decoration: InputDecoration(
             hintText: 'Share your experience with this farmer…',
-            hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[400]),
+            hintStyle: GoogleFonts.poppins(
+                fontSize: 13, color: Colors.grey[400]),
             filled: true,
             fillColor: Colors.grey[50],
             border: OutlineInputBorder(
@@ -574,7 +578,9 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           ),
           style: GoogleFonts.poppins(fontSize: 13),
         ),
+
         const SizedBox(height: 16),
+
         SizedBox(
           width: double.infinity,
           height: 52,
@@ -603,6 +609,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
+  // ── Small helpers ──────────────────────────────────────────────────
   BoxDecoration _cardDecor() => BoxDecoration(
     color: Colors.white,
     borderRadius: BorderRadius.circular(16),
@@ -623,8 +630,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   );
 
   Widget _noticeBanner({
-    required IconData      icon,
-    required String        message,
+    required IconData icon,
+    required String   message,
     required MaterialColor color,
   }) =>
       Container(
@@ -639,7 +646,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           Icon(icon, color: color[700], size: 20),
           const SizedBox(width: 10),
           Expanded(child: Text(message,
-              style: GoogleFonts.poppins(color: color[800], fontSize: 13))),
+              style: GoogleFonts.poppins(
+                  color: color[800], fontSize: 13))),
         ]),
       );
 }
