@@ -47,6 +47,8 @@ dependencies:
   # ── Maps & location (fixes order_tracking_screen + farmer_delivery_screen) ──
   google_maps_flutter: ^2.9.0   # GoogleMap, LatLng, Marker, Polyline, CameraPosition etc.
   geolocator: ^13.0.2           # Geolocator, Position, LocationPermission etc.
+  pdf: ^3.10.7
+  printing: ^5.11.1
 
   
 dev_dependencies:

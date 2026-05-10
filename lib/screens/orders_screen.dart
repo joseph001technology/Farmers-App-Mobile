@@ -64,7 +64,6 @@ class _OrdersScreenState extends State<OrdersScreen>
     }
   }
 
-  // ── CANCEL ORDER ──────────────────────────────────────────────────
   Future<void> _cancelOrder(Order order) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -97,25 +96,11 @@ class _OrdersScreenState extends State<OrdersScreen>
     HapticFeedback.mediumImpact();
     bool success = false;
 
-    // Try POST /orders/{id}/cancel/
     try {
       final r = await ApiHelper.post('/orders/${order.id}/cancel/', {});
-      if (r.statusCode == 200 || r.statusCode == 201 || r.statusCode == 204) {
-        success = true;
-      }
+      if (r.statusCode == 200 || r.statusCode == 201 || r.statusCode == 204) success = true;
     } catch (_) {}
 
-    // Try POST /orders/{id}/cancel (no slash)
-    if (!success) {
-      try {
-        final r = await ApiHelper.post('/orders/${order.id}/cancel', {});
-        if (r.statusCode == 200 || r.statusCode == 201 || r.statusCode == 204) {
-          success = true;
-        }
-      } catch (_) {}
-    }
-
-    // Try PUT status=cancelled
     if (!success) {
       try {
         final r = await ApiHelper.put('/orders/${order.id}/', {'status': 'cancelled'});
@@ -123,66 +108,54 @@ class _OrdersScreenState extends State<OrdersScreen>
       } catch (_) {}
     }
 
-    // Always remove from local list
     if (!mounted) return;
     setState(() => orders.removeWhere((o) => o.id == order.id));
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(
-        success
-            ? 'Order #${order.id} cancelled.'
-            : 'Order #${order.id} removed from list.',
-        style: GoogleFonts.poppins(fontSize: 13),
-      ),
+      content: Text(success ? 'Order #${order.id} cancelled.' : 'Order #${order.id} removed.'),
       backgroundColor: success ? Colors.green[700] : Colors.orange[700],
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
     ));
   }
 
   String _formatDate(String raw) {
     try {
       final dt = DateTime.parse(raw).toLocal();
-      const months = ['', 'Jan','Feb','Mar','Apr','May','Jun',
-                           'Jul','Aug','Sep','Oct','Nov','Dec'];
-      return '${dt.day} ${months[dt.month]} ${dt.year}  •  '
-          '${dt.hour.toString().padLeft(2,'0')}:'
-          '${dt.minute.toString().padLeft(2,'0')}';
+      const months = ['', 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${dt.day} ${months[dt.month]} ${dt.year}  •  ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
     } catch (_) { return raw; }
   }
 
   Color _statusColor(String s) {
     switch (s) {
-      case 'paid':      return Colors.green;
+      case 'paid': return Colors.green;
       case 'delivered': return Colors.blue;
-      default:          return Colors.orange;
+      default: return Colors.orange;
     }
   }
 
   IconData _statusIcon(String s) {
     switch (s) {
-      case 'paid':      return Icons.check_circle_rounded;
+      case 'paid': return Icons.check_circle_rounded;
       case 'delivered': return Icons.local_shipping_rounded;
-      default:          return Icons.access_time_rounded;
+      default: return Icons.access_time_rounded;
     }
   }
 
   String _statusLabel(String s) {
     switch (s) {
-      case 'paid':      return 'Paid';
+      case 'paid': return 'Paid';
       case 'delivered': return 'Delivered';
-      default:          return 'Pending';
+      default: return 'Pending';
     }
   }
 
-  List<Order> _filtered(String status) =>
-      orders.where((o) => o.status == status).toList();
+  List<Order> _filtered(String status) => orders.where((o) => o.status == status).toList();
 
   @override
   Widget build(BuildContext context) {
-    final pending   = _filtered('pending');
-    final paid      = _filtered('paid');
+    final pending = _filtered('pending');
+    final paid = _filtered('paid');
     final delivered = _filtered('delivered');
 
     return Scaffold(
@@ -207,87 +180,58 @@ class _OrdersScreenState extends State<OrdersScreen>
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.green))
-          : errorMessage.isNotEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(errorMessage,
-                            style: GoogleFonts.poppins(color: Colors.red, fontSize: 13),
-                            textAlign: TextAlign.center),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: fetchOrders,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[700], foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
+          : Column(
+              children: [
+                _buildSummaryBanner(pending.length, paid.length),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: fetchOrders,
+                    color: Colors.green,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildList(pending, showPayButton: true, showCancelButton: true),
+                        _buildList(paid, showReceiptButton: true), // View Receipt shown here
+                        _buildList(delivered, showRateButton: true),
+                      ],
+                    ),
                   ),
-                )
-              : Column(
-                  children: [
-                    // Summary banner
-                    Container(
-                      margin: const EdgeInsets.all(16),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.green[700]!, Colors.green[400]!],
-                          begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3),
-                            blurRadius: 10, offset: const Offset(0, 4))],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _summaryItem('Total', '${orders.length}', Icons.receipt_long),
-                          _vDivider(),
-                          _summaryItem('Pending', '${pending.length}',
-                              Icons.access_time, color: Colors.orange[200]!),
-                          _vDivider(),
-                          _summaryItem('Paid', '${paid.length}',
-                              Icons.check_circle, color: Colors.greenAccent),
-                        ],
-                      ),
-                    ),
-
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: fetchOrders,
-                        color: Colors.green,
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildList(pending, showPayButton: true, showCancelButton: true),
-                            _buildList(paid),
-                            _buildList(delivered, showRateButton: true),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
+              ],
+            ),
     );
   }
 
-  Widget _summaryItem(String label, String value, IconData icon,
-      {Color color = Colors.white}) {
+  Widget _buildSummaryBanner(int pendingCount, int paidCount) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green[700]!, Colors.green[400]!],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _summaryItem('Total', '${orders.length}', Icons.receipt_long),
+          _vDivider(),
+          _summaryItem('Pending', '$pendingCount', Icons.access_time, color: Colors.orange[200]!),
+          _vDivider(),
+          _summaryItem('Paid', '$paidCount', Icons.check_circle, color: Colors.greenAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, String value, IconData icon, {Color color = Colors.white}) {
     return Column(children: [
       Icon(icon, color: color, size: 20),
       const SizedBox(height: 4),
-      Text(value, style: GoogleFonts.poppins(
-          color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+      Text(value, style: GoogleFonts.poppins(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
       Text(label, style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
     ]);
   }
@@ -295,20 +239,13 @@ class _OrdersScreenState extends State<OrdersScreen>
   Widget _vDivider() => Container(height: 40, width: 1, color: Colors.white24);
 
   Widget _buildList(List<Order> list, {
-    bool showPayButton    = false,
+    bool showPayButton = false,
     bool showCancelButton = false,
-    bool showRateButton   = false,
+    bool showRateButton = false,
+    bool showReceiptButton = false,
   }) {
     if (list.isEmpty) {
-      return Center(child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox_rounded, size: 60, color: Colors.green[200]),
-          const SizedBox(height: 12),
-          Text('No orders here',
-              style: GoogleFonts.poppins(color: Colors.grey[600], fontSize: 16)),
-        ],
-      ));
+      return Center(child: Text('No orders here', style: GoogleFonts.poppins(color: Colors.grey[600])));
     }
 
     return ListView.builder(
@@ -319,128 +256,70 @@ class _OrdersScreenState extends State<OrdersScreen>
         final color = _statusColor(order.status);
 
         return GestureDetector(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8, offset: const Offset(0, 2))],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(children: [
-                Row(children: [
-                  Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(14)),
-                    child: Icon(_statusIcon(order.status), color: color, size: 28),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Order #${order.id}', style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w700, fontSize: 15)),
-                      const SizedBox(height: 2),
-                      Text(_formatDate(order.createdAt),
-                          style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[500])),
-                      if (order.paymentMethod != null) ...[
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.blue[50],
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Text(
-                            order.paymentMethod == 'pod' ? '💵 Pay on Delivery' : '📱 M-Pesa',
-                            style: GoogleFonts.poppins(fontSize: 10,
-                                color: Colors.blue[700], fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ],
-                    ],
-                  )),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('KSh ${order.totalPrice.toStringAsFixed(0)}',
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green[800])),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: color.withOpacity(0.4)),
-                      ),
-                      child: Text(_statusLabel(order.status),
-                          style: GoogleFonts.poppins(fontSize: 10,
-                              color: color, fontWeight: FontWeight.w600)),
-                    ),
-                  ]),
-                ]),
-
-                if (showPayButton || showCancelButton || showRateButton) ...[
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    if (showPayButton)
-                      Expanded(child: ElevatedButton.icon(
-                        onPressed: () async {
-                          await Navigator.push(context, MaterialPageRoute(
-                              builder: (_) => PaymentScreen(
-                                  orderId: order.id, totalPrice: order.totalPrice)));
-                          fetchOrders();
-                        },
-                        icon: const Text('📱', style: TextStyle(fontSize: 15)),
-                        label: Text('Pay via M-Pesa',
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[700], foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                      )),
-
-                    if (showCancelButton) ...[
-                      if (showPayButton) const SizedBox(width: 10),
-                      SizedBox(height: 42, child: OutlinedButton(
-                        onPressed: () => _cancelOrder(order),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red[600],
-                          side: BorderSide(color: Colors.red[300]!),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                        ),
-                        child: Row(children: [
-                          Icon(Icons.cancel_outlined, size: 16, color: Colors.red[600]),
-                          const SizedBox(width: 4),
-                          Text('Cancel', style: GoogleFonts.poppins(
-                              fontSize: 13, color: Colors.red[600])),
-                        ]),
-                      )),
-                    ],
-
-                    if (showRateButton)
-                      Expanded(child: ElevatedButton.icon(
-                        onPressed: () => Navigator.push(context,
-                            MaterialPageRoute(
-                                builder: (_) => SubmitRatingScreen(order: order))),
-                        icon: const Icon(Icons.star_rounded, size: 18),
-                        label: Text('Rate & Review',
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.amber[600], foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                      )),
-                  ]),
-                ],
+            child: Column(children: [
+              Row(children: [
+                Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
+                  child: Icon(_statusIcon(order.status), color: color, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Order #${order.id}', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text(_formatDate(order.createdAt), style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[500])),
+                  ],
+                )),
+                Text('KSh ${order.totalPrice.toStringAsFixed(0)}', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.green[800])),
               ]),
-            ),
+              
+              if (showPayButton || showCancelButton || showRateButton || showReceiptButton) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  if (showPayButton)
+                    Expanded(child: ElevatedButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PaymentScreen(orderId: order.id, totalPrice: order.totalPrice))),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], foregroundColor: Colors.white),
+                      child: Text('Pay via M-Pesa', style: GoogleFonts.poppins(fontSize: 13)),
+                    )),
+                  
+                  if (showReceiptButton)
+                    Expanded(child: OutlinedButton.icon(
+                      // REDIRECTS TO DETAIL SCREEN INSTEAD OF RECEIPT SCREEN
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+                      icon: Icon(Icons.receipt_long_rounded, color: Colors.green[700], size: 18),
+                      label: Text('View Receipt', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.green[700])),
+                      style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.green.shade300)),
+                    )),
+
+                  if (showRateButton)
+                    Expanded(child: ElevatedButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubmitRatingScreen(order: order))),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[600], foregroundColor: Colors.white),
+                      child: Text('Rate & Review', style: GoogleFonts.poppins(fontSize: 13)),
+                    )),
+                  
+                  if (showCancelButton) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => _cancelOrder(order),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red[600], side: BorderSide(color: Colors.red[300]!)),
+                      child: Text('Cancel', style: GoogleFonts.poppins(fontSize: 13)),
+                    ),
+                  ],
+                ]),
+              ],
+            ]),
           ),
         );
       },

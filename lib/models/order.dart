@@ -6,7 +6,6 @@ class OrderItem {
   final int quantity;
   final double unitPrice;
 
-  // Alias so both .price and .unitPrice work
   double get price => unitPrice;
 
   OrderItem({
@@ -23,16 +22,9 @@ class OrderItem {
       id: json['id'] ?? 0,
       productId: json['product'] ?? json['product_id'] ?? 0,
       productName: json['product_name'] ?? json['name'] ?? 'Product',
-      productImage: json['product_image'] ??
-          json['image'] ??
-          json['image_url'] ??
-          json['imageUrl'],
+      productImage: json['product_image'] ?? json['image'] ?? json['image_url'],
       quantity: int.tryParse(json['quantity'].toString()) ?? 1,
-      unitPrice: double.tryParse(
-              json['unit_price']?.toString() ??
-                  json['price']?.toString() ??
-                  '0') ??
-          0.0,
+      unitPrice: double.tryParse(json['unit_price']?.toString() ?? json['price']?.toString() ?? '0') ?? 0.0,
     );
   }
 }
@@ -45,11 +37,10 @@ class Order {
   final String? paymentMethod;
   final String? deliveryAddress;
   final List<OrderItem>? items;
-
-  // ── ADDED: farmer name from backend ─────────────────────────────
+  // Added Farmer Info
   final String? farmerName;
+  final String? farmerImage;
 
-  // Convenience getters used by order_detail_screen
   List<OrderItem> get orderItems => items ?? [];
   bool get isDelivered => status == 'delivered';
 
@@ -61,37 +52,33 @@ class Order {
     this.paymentMethod,
     this.deliveryAddress,
     this.items,
-    this.farmerName, // ← ADDED
+    this.farmerName,
+    this.farmerImage,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
-    // ── CHANGED: also accepts 'order_items' key from backend ────────
-    final List<dynamic>? rawItems =
-        json['order_items'] as List? ?? json['items'] as List?;
+    final List<dynamic>? rawItems = json['order_items'] as List? ?? json['items'] as List?;
+    
+    // Handles nested farmer object or flat farmer_name field
+    String? fName = json['farmer_name']?.toString();
+    String? fImg = json['farmer_image']?.toString();
+    if (json['farmer'] is Map) {
+      fName = json['farmer']['name'];
+      fImg = json['farmer']['profile_image'];
+    } else if (json['farmer'] != null) {
+      fName = json['farmer'].toString();
+    }
 
     return Order(
       id: json['id'] ?? 0,
       status: json['status'] ?? 'pending',
-      totalPrice:
-          double.tryParse(json['total_price']?.toString() ?? '0') ?? 0.0,
+      totalPrice: double.tryParse(json['total_price']?.toString() ?? '0') ?? 0.0,
       createdAt: json['created_at'] ?? '',
       paymentMethod: json['payment_method'],
       deliveryAddress: json['delivery_address'],
       items: rawItems?.map((i) => OrderItem.fromJson(i)).toList(),
-      // ── ADDED: reads 'farmer_name' or 'farmer' from backend ──────
-      farmerName: json['farmer_name']?.toString() ??
-          json['farmer']?.toString(),
+      farmerName: fName,
+      farmerImage: fImg,
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'status': status,
-      'total_price': totalPrice,
-      'created_at': createdAt,
-      'payment_method': paymentMethod,
-      'delivery_address': deliveryAddress,
-    };
   }
 }
