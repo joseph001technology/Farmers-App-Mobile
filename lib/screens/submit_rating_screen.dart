@@ -54,7 +54,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   // ── Farmer search (Mode B — no preselected farmer) ─────────────────
   List<Map<String, dynamic>> _farmers      = [];
   bool                       _loadingFarmers = false;
-  Map<String, dynamic>?      _pickedFarmer;
+  Map<String, dynamic>?       _pickedFarmer;
 
   static const _labels = [
     '', 'Poor 😞', 'Fair 😐', 'Good 🙂', 'Great 😄', 'Excellent 🌟'
@@ -88,12 +88,18 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
 
   // ── Helpers ────────────────────────────────────────────────────────
   int? _resolveFarmerIdFromOrder() {
-    try { final id = (widget.order! as dynamic).farmerId; if (id != null) return id as int; } catch (_) {}
+    try { 
+      final id = (widget.order! as dynamic).farmerId; 
+      if (id != null) return id as int; 
+    } catch (_) {}
     return null;
   }
 
   String _resolveFarmerNameFromOrder() {
-    try { final n = (widget.order! as dynamic).farmerName as String?; if (n != null && n.isNotEmpty) return n; } catch (_) {}
+    try { 
+      final n = (widget.order! as dynamic).farmerName as String?; 
+      if (n != null && n.isNotEmpty) return n; 
+    } catch (_) {}
     return 'Farmer';
   }
 
@@ -131,7 +137,6 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       final res = await ApiHelper.get('/products/');
       if (res.statusCode == 200) {
         final List raw = jsonDecode(res.body) as List;
-        // Extract unique farmers from products
         final seen = <int>{};
         final farmers = <Map<String, dynamic>>[];
         for (final p in raw.cast<Map<String, dynamic>>()) {
@@ -179,8 +184,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     } catch (e) {
       setState(() => _isSubmitting = false);
       final msg = e.toString().replaceFirst('Exception: ', '');
-      if (msg.toLowerCase().contains('already rated') ||
-          msg.toLowerCase().contains('already rate')) {
+      if (msg.toLowerCase().contains('already rated')) {
         setState(() => _alreadyRated = true);
       }
       _snack(msg, isError: true);
@@ -216,29 +220,24 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Farmer card ──────────────────────────────────────────
           _farmerCard(),
           const SizedBox(height: 16),
 
-          // ── Mode B: farmer picker (if no preselected farmer) ─────
           if (!_isModeA && !_hasFarmerPreselected) ...[
             _farmerPickerCard(),
             const SizedBox(height: 16),
           ],
 
-          // ── Mode B: order picker ─────────────────────────────────
           if (!_isModeA) ...[
             _orderPickerCard(),
             const SizedBox(height: 16),
           ],
 
-          // ── Mode A: order summary ────────────────────────────────
           if (_isModeA) ...[
             _orderSummaryCard(),
             const SizedBox(height: 16),
           ],
 
-          // ── Already rated notice ─────────────────────────────────
           if (_alreadyRated)
             _noticeBanner(
               icon: Icons.info_outline,
@@ -246,7 +245,6 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
               color: Colors.orange,
             ),
 
-          // ── Rating form ──────────────────────────────────────────
           if (!_alreadyRated) _ratingForm(),
 
           const SizedBox(height: 30),
@@ -454,7 +452,17 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
               ),
             );
           }).toList(),
-          onChanged: (v) => setState(() => _selectedOrderId = v),
+          onChanged: (val) {
+            setState(() {
+              _selectedOrderId = val;
+              // CRITICAL FIX: Find the farmer info within the selected order Map
+              if (val != null) {
+                final selectedMap = _deliveredOrders.firstWhere((o) => (o['id'] as num).toInt() == val);
+                _selectedFarmerId = (selectedMap['farmer'] as num?)?.toInt() ?? (selectedMap['farmer_id'] as num?)?.toInt();
+                _selectedFarmerName = selectedMap['farmer_name']?.toString() ?? selectedMap['farmer_username']?.toString();
+              }
+            });
+          },
         ),
       ]),
     );
@@ -511,7 +519,6 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                 fontSize: 12, color: Colors.grey[500])),
         const SizedBox(height: 20),
 
-        // Stars
         Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -550,7 +557,6 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
 
         const SizedBox(height: 20),
 
-        // Review text
         Text('Your review (optional)',
             style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600])),
         const SizedBox(height: 8),
@@ -609,7 +615,6 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
-  // ── Small helpers ──────────────────────────────────────────────────
   BoxDecoration _cardDecor() => BoxDecoration(
     color: Colors.white,
     borderRadius: BorderRadius.circular(16),
