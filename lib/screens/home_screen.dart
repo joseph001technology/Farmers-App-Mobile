@@ -10,6 +10,9 @@ import 'farmer_dashboard_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'consumer_dashboard_screen.dart';
 import 'ratings_screen.dart';
+import 'farmer_profile_screen.dart';
+import '../widgets/farmer_avatar.dart';
+import '../helpers/farmer_nav_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,27 +36,58 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Product> get _todaysPicks => allProducts.take(6).toList();
 
-  /// Farmers sorted by averageRating descending; always show 5 slots
+  /// Farmers sorted by averageRating descending — only real farmers with data.
+  /// Shows up to 5; pads with empty slots only if fewer than 5 real farmers.
   List<_FarmerSummary> get _topFarmers {
-    final map = <String, _FarmerSummary>{};
+    final map = <int, _FarmerSummary>{};
     for (final p in allProducts) {
+      final fId = p.farmerId;
+      if (fId == null) continue;
       final name = p.farmerName ?? 'Unknown';
-      if (!map.containsKey(name)) {
-        map[name] = _FarmerSummary(
-          name:          name,
-          farmerId:      p.farmerId,
-          avgRating:     p.averageRating ?? 0.0,
-          ratingCount:   p.ratingCount   ?? 0,
+      if (!map.containsKey(fId)) {
+        map[fId] = _FarmerSummary(
+          name:           name,
+          farmerId:       fId,
+          avgRating:      p.averageRating ?? 0.0,
+          ratingCount:    p.ratingCount   ?? 0,
           farmerLocation: p.farmerLocation,
+          farmerPhoto:    p.farmerPhoto,
+        );
+      } else {
+        // If this product has a higher rating, update
+        final existing = map[fId]!;
+        if ((p.averageRating ?? 0) > existing.avgRating) {
+          map[fId] = _FarmerSummary(
+            name:           existing.name,
+            farmerId:       existing.farmerId,
+            avgRating:      p.averageRating ?? existing.avgRating,
+            ratingCount:    p.ratingCount   ?? existing.ratingCount,
+            farmerLocation: existing.farmerLocation,
+            farmerPhoto:    p.farmerPhoto ?? existing.farmerPhoto,
+          );
+        }
+        // Also accumulate rating count
+        final cur = map[fId]!;
+        map[fId] = _FarmerSummary(
+          name:           cur.name,
+          farmerId:       cur.farmerId,
+          avgRating:      cur.avgRating,
+          ratingCount:    cur.ratingCount + (p.ratingCount ?? 0),
+          farmerLocation: cur.farmerLocation,
+          farmerPhoto:    cur.farmerPhoto,
         );
       }
     }
+
     final list = map.values.toList()
       ..sort((a, b) => b.avgRating.compareTo(a.avgRating));
-    // Pad to 5 with zero-rated placeholders
+
+    // Pad to 5 with placeholders only if we have fewer than 5
     while (list.length < 5) {
-      list.add(_FarmerSummary(name: '—', farmerId: null,
-          avgRating: 0, ratingCount: 0, farmerLocation: null));
+      list.add(_FarmerSummary(
+          name: '—', farmerId: null,
+          avgRating: 0, ratingCount: 0,
+          farmerLocation: null, farmerPhoto: null));
     }
     return list.take(5).toList();
   }
@@ -64,12 +98,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadProducts();
   }
 
+  String _loadError = '';
+
   Future<void> _loadProducts() async {
+    setState(() { isLoading = true; _loadError = ''; });
     try {
       final all = await ProductService.getProducts();
       setState(() { allProducts = all; isLoading = false; });
-    } catch (_) {
-      setState(() => isLoading = false);
+    } catch (e) {
+      setState(() { isLoading = false; _loadError = e.toString(); });
     }
   }
 
@@ -79,12 +116,21 @@ class _HomeScreenState extends State<HomeScreen> {
     return const ConsumerDashboardScreen();
   }
 
+  void _goToFarmerProfile(_FarmerSummary f) {
+    goToFarmerProfile(
+      context,
+      farmerId:       f.farmerId,
+      farmerName:     f.name,
+      farmerLocation: f.farmerLocation,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final username   = AuthService.username ?? 'User';
-    final role       = AuthService.role ?? '';
-    final isFarmer   = role == 'farmer';
-    final isAdmin    = role == 'admin';
+    final username     = AuthService.username ?? 'User';
+    final role         = AuthService.role ?? '';
+    final isFarmer     = role == 'farmer';
+    final isAdmin      = role == 'admin';
     final farmerGroups = _byFarmer;
 
     return Scaffold(
@@ -186,6 +232,49 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ── Error banner ───────────────────────────────────
+                  if (_loadError.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Icon(Icons.error_outline, color: Colors.red[700], size: 18),
+                              const SizedBox(width: 8),
+                              Text('Could not load products',
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.red[700],
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13)),
+                            ]),
+                            const SizedBox(height: 4),
+                            Text(_loadError,
+                                style: GoogleFonts.poppins(
+                                    color: Colors.red[600], fontSize: 11),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _loadProducts,
+                              child: Text('Tap to retry →',
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   // ── Stats row ──────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
@@ -297,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 28),
 
                   // ── TOP REVIEWED FARMERS ───────────────────────────
-                  _topReviewedFarmersSection(),
+                  if (!isLoading) _topReviewedFarmersSection(),
 
                   const SizedBox(height: 28),
 
@@ -369,6 +458,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── TOP REVIEWED FARMERS SECTION ──────────────────────────────────
   Widget _topReviewedFarmersSection() {
     final farmers = _topFarmers;
+    // Check if we have any real farmers
+    final hasRealFarmers = farmers.any((f) => f.farmerId != null);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -381,8 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: GoogleFonts.poppins(
                       fontSize: 18, fontWeight: FontWeight.bold)),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.amber[50],
                   borderRadius: BorderRadius.circular(12),
@@ -404,11 +495,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontSize: 12, color: Colors.grey[500])),
         ),
         const SizedBox(height: 12),
-        ...farmers.asMap().entries.map((entry) {
-          final rank   = entry.key + 1;
-          final farmer = entry.value;
-          return _topFarmerRow(rank, farmer);
-        }),
+        if (!hasRealFarmers)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: Center(child: Column(children: [
+                const Text('🌾', style: TextStyle(fontSize: 36)),
+                const SizedBox(height: 8),
+                Text('No ratings yet',
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, fontSize: 15)),
+                Text('Be the first to review a farmer!',
+                    style: GoogleFonts.poppins(
+                        color: Colors.grey[500], fontSize: 12)),
+              ])),
+            ),
+          )
+        else
+          ...farmers.asMap().entries.map((entry) {
+            final rank   = entry.key + 1;
+            final farmer = entry.value;
+            return _topFarmerRow(rank, farmer);
+          }),
       ],
     );
   }
@@ -416,200 +532,262 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _topFarmerRow(int rank, _FarmerSummary f) {
     final medalEmoji = rank == 1 ? '🥇' : rank == 2 ? '🥈' : rank == 3 ? '🥉' : '#$rank';
     final isEmpty    = f.farmerId == null;
-    final initials   = f.name.isNotEmpty && f.name != '—'
-        ? f.name[0].toUpperCase() : '🌾';
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: rank == 1
-            ? Border.all(color: Colors.amber[300]!, width: 1.5)
-            : null,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 8, offset: const Offset(0, 2))
-        ],
-      ),
-      child: Row(children: [
-        // Rank badge
-        Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(
-            color: rank <= 3 ? Colors.amber[50] : Colors.grey[100],
-            shape: BoxShape.circle,
-          ),
-          child: Center(child: Text(
-            rank <= 3 ? medalEmoji : '#$rank',
-            style: TextStyle(fontSize: rank <= 3 ? 18 : 12),
-          )),
+    return GestureDetector(
+      onTap: isEmpty ? null : () => _goToFarmerProfile(f),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: rank == 1
+              ? Border.all(color: Colors.amber[300]!, width: 1.5)
+              : null,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05),
+                blurRadius: 8, offset: const Offset(0, 2))
+          ],
         ),
-        const SizedBox(width: 10),
-        // Avatar
-        CircleAvatar(
-          radius: 22,
-          backgroundColor: isEmpty ? Colors.grey[200] : Colors.green[100],
-          child: Text(
-            isEmpty ? '?' : initials,
-            style: GoogleFonts.poppins(
-                color: isEmpty ? Colors.grey : Colors.green[800],
-                fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Name + location
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(isEmpty ? 'Not yet rated' : f.name,
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600, fontSize: 14,
-                  color: isEmpty ? Colors.grey[400] : Colors.black87)),
-          if (!isEmpty && f.farmerLocation != null)
-            Text(f.farmerLocation!,
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: Colors.green[700]))
-          else if (!isEmpty)
-            Text('Nairobi, Kenya',
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: Colors.green[700])),
-          // Stars
-          const SizedBox(height: 3),
-          Row(children: [
-            ...List.generate(5, (i) => Icon(
-              i < f.avgRating.floor()
-                  ? Icons.star_rounded
-                  : (i < f.avgRating
-                      ? Icons.star_half_rounded
-                      : Icons.star_outline_rounded),
-              color: isEmpty ? Colors.grey[300] : Colors.amber,
-              size: 13,
+        child: Row(children: [
+          // Rank badge
+          Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(
+              color: rank <= 3 ? Colors.amber[50] : Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Center(child: Text(
+              rank <= 3 ? medalEmoji : '#$rank',
+              style: TextStyle(fontSize: rank <= 3 ? 18 : 12),
             )),
-            const SizedBox(width: 4),
-            Text(
-              isEmpty ? 'No reviews' : '${f.avgRating.toStringAsFixed(1)} (${f.ratingCount})',
-              style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  color: isEmpty ? Colors.grey[400] : Colors.grey[600]),
-            ),
-          ]),
-        ])),
-        // Reviews button (only for actual farmers)
-        if (!isEmpty && f.farmerId != null)
-          OutlinedButton.icon(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => RatingsScreen(
-                    farmerId: f.farmerId, farmerName: f.name))),
-            icon: const Icon(Icons.star_outline, size: 13),
-            label: const Text('Reviews'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.orange[700],
-              side: BorderSide(color: Colors.orange[300]!),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 4),
-              textStyle: GoogleFonts.poppins(fontSize: 11),
-            ),
           ),
-      ]),
+          const SizedBox(width: 10),
+          // Avatar with photo
+          isEmpty
+              ? CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.grey[200],
+                  child: Text('?',
+                      style: GoogleFonts.poppins(
+                          color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 16)),
+                )
+              : FarmerAvatar(
+                  farmerId:    f.farmerId,
+                  farmerName:  f.name,
+                  radius:      22,
+                  onTap: () => _goToFarmerProfile(f),
+                ),
+          const SizedBox(width: 12),
+          // Name + location + stars
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(isEmpty ? 'Not yet rated' : f.name,
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600, fontSize: 14,
+                    color: isEmpty ? Colors.grey[400] : Colors.black87)),
+            if (!isEmpty && f.farmerLocation != null)
+              Text(f.farmerLocation!,
+                  style: GoogleFonts.poppins(
+                      fontSize: 11, color: Colors.green[700]))
+            else if (!isEmpty)
+              Text('Nairobi, Kenya',
+                  style: GoogleFonts.poppins(
+                      fontSize: 11, color: Colors.green[700])),
+            const SizedBox(height: 3),
+            Row(children: [
+              ...List.generate(5, (i) => Icon(
+                i < f.avgRating.floor()
+                    ? Icons.star_rounded
+                    : (i < f.avgRating
+                        ? Icons.star_half_rounded
+                        : Icons.star_outline_rounded),
+                color: isEmpty ? Colors.grey[300] : Colors.amber,
+                size: 13,
+              )),
+              const SizedBox(width: 4),
+              Text(
+                isEmpty
+                    ? 'No reviews'
+                    : f.avgRating > 0
+                        ? '${f.avgRating.toStringAsFixed(1)} (${f.ratingCount})'
+                        : 'No reviews yet',
+                style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: isEmpty ? Colors.grey[400] : Colors.grey[600]),
+              ),
+            ]),
+          ])),
+          // Action buttons
+          if (!isEmpty && f.farmerId != null)
+            Column(children: [
+              // View Profile
+              GestureDetector(
+                onTap: () => _goToFarmerProfile(f),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green[300]!),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.person_outline, size: 12, color: Colors.green[700]),
+                    const SizedBox(width: 3),
+                    Text('Profile',
+                        style: GoogleFonts.poppins(
+                            fontSize: 10, color: Colors.green[700],
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Reviews button
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => RatingsScreen(
+                        farmerId: f.farmerId, farmerName: f.name))),
+                icon: const Icon(Icons.star_outline, size: 13),
+                label: const Text('Reviews'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange[700],
+                  side: BorderSide(color: Colors.orange[300]!),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  textStyle: GoogleFonts.poppins(fontSize: 10),
+                ),
+              ),
+            ]),
+        ]),
+      ),
     );
   }
 
   // ── FARMER SECTION ─────────────────────────────────────────────────
-  Widget _farmerSection(
-      String farmerName, List<Product> products, Product sample) {
+  Widget _farmerSection(String farmerName, List<Product> products, Product sample) {
     final farmerId = sample.farmerId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8, offset: const Offset(0, 3))],
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.green[100],
-                child: Text(
-                  farmerName.isNotEmpty ? farmerName[0].toUpperCase() : '🌾',
-                  style: GoogleFonts.poppins(
-                      fontSize: 22, fontWeight: FontWeight.bold,
-                      color: Colors.green[800]),
-                ),
+          child: GestureDetector(
+            onTap: () => goToFarmerProfile(
+                context,
+                farmerId:       farmerId,
+                farmerName:     farmerName,
+                farmerLocation: sample.farmerLocation,
               ),
-              const SizedBox(width: 14),
-              Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(farmerName,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8, offset: const Offset(0, 3))],
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Profile photo avatar
+                FarmerAvatar(
+                  farmerId:   farmerId,
+                  farmerName: farmerName,
+                  radius:     28,
+                  onTap: () => goToFarmerProfile(
+                      context,
+                      farmerId:       farmerId,
+                      farmerName:     farmerName,
+                      farmerLocation: sample.farmerLocation,
+                    ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Text(farmerName,
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.verified, color: Colors.green[400], size: 14),
+                  ]),
+                  Text(sample.farmerLocation ?? 'Nairobi, Kenya',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: Colors.green[700])),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${products.length} product${products.length == 1 ? '' : 's'} available',
                     style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.bold, fontSize: 15)),
-                Text(sample.farmerLocation ?? 'Nairobi, Kenya',
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, color: Colors.green[700])),
-                const SizedBox(height: 4),
-                Text(
-                  '${products.length} product${products.length == 1 ? '' : 's'} available',
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, color: Colors.grey[500])),
-                if (sample.averageRating != null && sample.averageRating! > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(children: [
-                      ...List.generate(5, (i) => Icon(
-                        i < sample.averageRating!.floor()
-                            ? Icons.star_rounded : Icons.star_outline_rounded,
-                        color: Colors.amber, size: 14,
-                      )),
-                      const SizedBox(width: 4),
-                      Text(sample.averageRating!.toStringAsFixed(1),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: Colors.grey[600])),
-                    ]),
-                  ),
-              ])),
-              Column(children: [
-                if (sample.farmerPhone != null)
+                        fontSize: 12, color: Colors.grey[500])),
+                  if (sample.averageRating != null && sample.averageRating! > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(children: [
+                        ...List.generate(5, (i) => Icon(
+                          i < sample.averageRating!.floor()
+                              ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: Colors.amber, size: 14,
+                        )),
+                        const SizedBox(width: 4),
+                        Text(sample.averageRating!.toStringAsFixed(1),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11, color: Colors.grey[600])),
+                      ]),
+                    ),
+                ])),
+                Column(children: [
+                  if (sample.farmerPhone != null)
+                    OutlinedButton.icon(
+                      onPressed: () {},
+                      icon: const Icon(Icons.phone, size: 13),
+                      label: const Text('Call'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.green[700],
+                        side: BorderSide(color: Colors.green[300]!),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        textStyle: GoogleFonts.poppins(fontSize: 11),
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  if (farmerId != null)
+                    OutlinedButton.icon(
+                      onPressed: () => goToFarmerProfile(
+                          context,
+                          farmerId:       farmerId,
+                          farmerName:     farmerName,
+                          farmerLocation: sample.farmerLocation,
+                        ),
+                      icon: const Icon(Icons.person_outline, size: 13),
+                      label: const Text('Profile'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.teal[700],
+                        side: BorderSide(color: Colors.teal[300]!),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        textStyle: GoogleFonts.poppins(fontSize: 11),
+                      ),
+                    ),
+                  const SizedBox(height: 4),
                   OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.phone, size: 13),
-                    label: const Text('Call'),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => RatingsScreen(
+                            farmerId: farmerId, farmerName: farmerName))),
+                    icon: const Icon(Icons.star_outline, size: 13),
+                    label: const Text('Reviews'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green[700],
-                      side: BorderSide(color: Colors.green[300]!),
+                      foregroundColor: Colors.orange[700],
+                      side: BorderSide(color: Colors.orange[300]!),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       textStyle: GoogleFonts.poppins(fontSize: 11),
                     ),
                   ),
-                const SizedBox(height: 4),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => RatingsScreen(
-                          farmerId: farmerId, farmerName: farmerName))),
-                  icon: const Icon(Icons.star_outline, size: 13),
-                  label: const Text('Reviews'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange[700],
-                    side: BorderSide(color: Colors.orange[300]!),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    textStyle: GoogleFonts.poppins(fontSize: 11),
-                  ),
-                ),
+                ]),
               ]),
-            ]),
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -619,8 +797,7 @@ class _HomeScreenState extends State<HomeScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
             itemCount: products.length,
-            itemBuilder: (_, i) =>
-                _productCard(products[i], showFarmer: false),
+            itemBuilder: (_, i) => _productCard(products[i], showFarmer: false),
           ),
         ),
         const SizedBox(height: 20),
@@ -768,6 +945,7 @@ class _FarmerSummary {
   final double  avgRating;
   final int     ratingCount;
   final String? farmerLocation;
+  final String? farmerPhoto;
 
   const _FarmerSummary({
     required this.name,
@@ -775,5 +953,6 @@ class _FarmerSummary {
     required this.avgRating,
     required this.ratingCount,
     required this.farmerLocation,
+    required this.farmerPhoto,
   });
 }

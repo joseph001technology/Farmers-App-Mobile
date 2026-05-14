@@ -19,12 +19,14 @@ class OrderItem {
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
-      id: json['id'] ?? 0,
-      productId: json['product'] ?? json['product_id'] ?? 0,
+      id:          json['id'] ?? 0,
+      productId:   json['product'] ?? json['product_id'] ?? 0,
       productName: json['product_name'] ?? json['name'] ?? 'Product',
       productImage: json['product_image'] ?? json['image'] ?? json['image_url'],
-      quantity: int.tryParse(json['quantity'].toString()) ?? 1,
-      unitPrice: double.tryParse(json['unit_price']?.toString() ?? json['price']?.toString() ?? '0') ?? 0.0,
+      quantity:    int.tryParse(json['quantity'].toString()) ?? 1,
+      unitPrice:   double.tryParse(
+          json['unit_price']?.toString() ??
+          json['price']?.toString() ?? '0') ?? 0.0,
     );
   }
 }
@@ -37,9 +39,10 @@ class Order {
   final String? paymentMethod;
   final String? deliveryAddress;
   final List<OrderItem>? items;
-  // Added Farmer Info
+  // Farmer info
   final String? farmerName;
   final String? farmerImage;
+  final int?    farmerId;      // ← NEW: farmer's user ID
 
   List<OrderItem> get orderItems => items ?? [];
   bool get isDelivered => status == 'delivered';
@@ -54,31 +57,42 @@ class Order {
     this.items,
     this.farmerName,
     this.farmerImage,
+    this.farmerId,             // ← NEW
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
-    final List<dynamic>? rawItems = json['order_items'] as List? ?? json['items'] as List?;
-    
-    // Handles nested farmer object or flat farmer_name field
+    final List<dynamic>? rawItems =
+        json['order_items'] as List? ?? json['items'] as List?;
+
     String? fName = json['farmer_name']?.toString();
-    String? fImg = json['farmer_image']?.toString();
+    String? fImg  = json['farmer_image']?.toString();
+    int?    fId   = (json['farmer_id'] as num?)?.toInt()
+                 ?? (json['farmer'] is int
+                     ? (json['farmer'] as int)
+                     : null);
+
     if (json['farmer'] is Map) {
-      fName = json['farmer']['name'];
-      fImg = json['farmer']['profile_image'];
-    } else if (json['farmer'] != null) {
-      fName = json['farmer'].toString();
+      final fm = json['farmer'] as Map;
+      fName ??= fm['name']?.toString() ?? fm['username']?.toString();
+      fImg  ??= fm['profile_image']?.toString()
+             ?? fm['profile_photo']?.toString();
+      fId   ??= (fm['id'] as num?)?.toInt();
+    } else if (json['farmer'] != null && json['farmer'] is! int) {
+      fName ??= json['farmer'].toString();
     }
 
     return Order(
-      id: json['id'] ?? 0,
-      status: json['status'] ?? 'pending',
-      totalPrice: double.tryParse(json['total_price']?.toString() ?? '0') ?? 0.0,
-      createdAt: json['created_at'] ?? '',
-      paymentMethod: json['payment_method'],
+      id:              json['id'] ?? 0,
+      status:          json['status'] ?? 'pending',
+      totalPrice:      double.tryParse(
+          json['total_price']?.toString() ?? '0') ?? 0.0,
+      createdAt:       json['created_at'] ?? '',
+      paymentMethod:   json['payment_method'],
       deliveryAddress: json['delivery_address'],
-      items: rawItems?.map((i) => OrderItem.fromJson(i)).toList(),
-      farmerName: fName,
-      farmerImage: fImg,
+      items:           rawItems?.map((i) => OrderItem.fromJson(i)).toList(),
+      farmerName:      fName,
+      farmerImage:     fImg,
+      farmerId:        fId,    // ← NEW
     );
   }
 }

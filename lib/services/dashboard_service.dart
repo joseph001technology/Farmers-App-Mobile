@@ -181,8 +181,11 @@ class DashboardService {
       if (data is Map) {
         final msgs = <String>[];
         data.forEach((k, v) {
-          if (v is List) msgs.add('$k: ${v.join(', ')}');
-          else msgs.add('$k: $v');
+          if (v is List) {
+            msgs.add('$k: ${v.join(', ')}');
+          } else {
+            msgs.add('$k: $v');
+          }
         });
         if (msgs.isNotEmpty) errMsg = msgs.join('\n');
       }

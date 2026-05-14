@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/rating_service.dart';
+import '../services/farmer_service.dart';
 import '../models/rating.dart';
 import 'submit_rating_screen.dart';
+import 'farmer_profile_screen.dart';
+import '../widgets/farmer_avatar.dart';
+import '../helpers/farmer_nav_helper.dart';
 
 /// RatingsScreen
 ///
@@ -14,8 +18,6 @@ import 'submit_rating_screen.dart';
 class RatingsScreen extends StatefulWidget {
   final int?    farmerId;
   final String? farmerName;
-
-  // Legacy compat – ignored
   final int?    productId;
   final String? productName;
 
@@ -35,6 +37,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     with SingleTickerProviderStateMixin {
   FarmerRatingSummary? _summary;
   List<Rating>         _myRatings = [];
+  FarmerProfile?       _farmerProfile;
   bool   _loading = true;
   String _error   = '';
   late AnimationController _animCtrl;
@@ -47,12 +50,20 @@ class _RatingsScreenState extends State<RatingsScreen>
     _animCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));
     _load();
+    if (_isFarmerMode) _loadFarmerProfile();
   }
 
   @override
   void dispose() {
     _animCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFarmerProfile() async {
+    try {
+      final p = await FarmerService.getFarmerProfile(widget.farmerId!);
+      if (mounted) setState(() => _farmerProfile = p);
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -74,7 +85,6 @@ class _RatingsScreenState extends State<RatingsScreen>
     }
   }
 
-  // Navigate to SubmitRatingScreen and reload on return
   Future<void> _goRate({int? farmerId, String? farmerName}) async {
     final submitted = await Navigator.push<bool>(
       context,
@@ -89,7 +99,7 @@ class _RatingsScreenState extends State<RatingsScreen>
   }
 
   String get _title => _isFarmerMode
-      ? (widget.farmerName ?? _summary?.farmerName ?? 'Farmer') + ' Reviews'
+      ? '${widget.farmerName ?? _summary?.farmerName ?? 'Farmer'} Reviews'
       : 'My Reviews';
 
   @override
@@ -110,38 +120,64 @@ class _RatingsScreenState extends State<RatingsScreen>
   // FARMER VIEW
   // ══════════════════════════════════════════════════════════════════
   Widget _farmerView() {
-    final s = _summary!;
+    final s          = _summary!;
+    final photoUrl   = _farmerProfile?.profilePhoto;
+    final farmerName = s.farmerName.isNotEmpty ? s.farmerName
+        : widget.farmerName ?? 'Farmer';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F9F0),
-      // ── "Rate this Farmer" sticky bottom button ──────────────────
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () => _goRate(),
-              icon: const Icon(Icons.rate_review_rounded),
-              label: Text(
-                'Rate this Farmer',
-                style: GoogleFonts.poppins(
-                    fontSize: 15, fontWeight: FontWeight.w600),
+          child: Row(children: [
+            // View Profile button
+            if (widget.farmerId != null) ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => FarmerProfileScreen(
+                        farmerId:   widget.farmerId!,
+                        farmerName: farmerName,
+                      ))),
+                  icon: const Icon(Icons.person_outline),
+                  label: Text('View Profile',
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.teal[700],
+                    side: BorderSide(color: Colors.teal[400]!, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[700],
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _goRate(),
+                icon: const Icon(Icons.rate_review_rounded),
+                label: Text('Rate Farmer',
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[700],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
               ),
             ),
-          ),
+          ]),
         ),
       ),
       body: CustomScrollView(
         slivers: [
-          // Hero app bar
           SliverAppBar(
-            expandedHeight: 260,
+            expandedHeight: 270,
             pinned: true,
             backgroundColor: Colors.green[800],
             foregroundColor: Colors.white,
@@ -169,26 +205,33 @@ class _RatingsScreenState extends State<RatingsScreen>
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        child: Text(
-                          s.farmerName.isNotEmpty
-                              ? s.farmerName[0].toUpperCase() : '🌾',
-                          style: GoogleFonts.poppins(
-                              fontSize: 30, color: Colors.white,
-                              fontWeight: FontWeight.bold),
-                        ),
+                      // Profile photo
+                      GestureDetector(
+                        onTap: widget.farmerId == null ? null : () =>
+                            goToFarmerProfile(context, farmerId: widget.farmerId, farmerName: farmerName),
+                        child: photoUrl != null && photoUrl.isNotEmpty
+                            ? CircleAvatar(
+                                radius: 40,
+                                backgroundImage: NetworkImage(photoUrl),
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                onBackgroundImageError: (_, _) {},
+                              )
+                            : FarmerAvatar(
+                                farmerId:        widget.farmerId,
+                                farmerName:      farmerName,
+                                radius:          40,
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                textColor:       Colors.white,
+                              ),
                       ),
                       const SizedBox(height: 10),
                       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text(s.farmerName,
+                        Text(farmerName,
                             style: GoogleFonts.poppins(
                                 fontSize: 20, fontWeight: FontWeight.bold,
                                 color: Colors.white)),
                         const SizedBox(width: 6),
-                        const Icon(Icons.verified,
-                            color: Colors.greenAccent, size: 18),
+                        const Icon(Icons.verified, color: Colors.greenAccent, size: 18),
                       ]),
                       const SizedBox(height: 4),
                       Text('🌾 Local Farmer • Nairobi, Kenya',
@@ -246,7 +289,7 @@ class _RatingsScreenState extends State<RatingsScreen>
                 _emptyReviews()
               else
                 ...s.ratings.take(10).map(_reviewCard),
-              const SizedBox(height: 80), // space for bottom bar
+              const SizedBox(height: 80),
             ]),
           ),
         ],
@@ -276,7 +319,7 @@ class _RatingsScreenState extends State<RatingsScreen>
     if (s.totalRatings == 0) return 'N/A';
     final fives = s.ratings.where((r) => r.stars == 5).length;
     final pct   = (fives / s.totalRatings * 100).round();
-    if (pct >= 60) return '$pct% ⭐⭐⭐⭐⭐';
+    if (pct >= 60) return '$pct% 5★';
     if (s.averageRating >= 4) return 'Excellent';
     if (s.averageRating >= 3) return 'Good';
     return 'Average';
@@ -288,11 +331,9 @@ class _RatingsScreenState extends State<RatingsScreen>
       const SizedBox(height: 4),
       Text(value,
           style: GoogleFonts.poppins(
-              fontSize: 18, fontWeight: FontWeight.bold,
-              color: Colors.green[800])),
+              fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green[800])),
       Text(label,
-          style: GoogleFonts.poppins(
-              fontSize: 10, color: Colors.grey[500]),
+          style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[500]),
           textAlign: TextAlign.center),
     ]),
   );
@@ -325,8 +366,7 @@ class _RatingsScreenState extends State<RatingsScreen>
         ))),
         const SizedBox(height: 4),
         Text('${s.totalRatings} review${s.totalRatings == 1 ? '' : 's'}',
-            style: GoogleFonts.poppins(
-                color: Colors.white70, fontSize: 12)),
+            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
       ]),
       const Spacer(),
       Column(children: List.generate(5, (i) {
@@ -337,8 +377,7 @@ class _RatingsScreenState extends State<RatingsScreen>
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(children: [
             Text('$star',
-                style: GoogleFonts.poppins(
-                    color: Colors.white, fontSize: 12)),
+                style: GoogleFonts.poppins(color: Colors.white, fontSize: 12)),
             const SizedBox(width: 4),
             const Icon(Icons.star, color: Colors.white, size: 12),
             const SizedBox(width: 8),
@@ -355,8 +394,7 @@ class _RatingsScreenState extends State<RatingsScreen>
             ),
             const SizedBox(width: 6),
             Text('$count',
-                style: GoogleFonts.poppins(
-                    color: Colors.white70, fontSize: 11)),
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 11)),
           ]),
         );
       })),
@@ -389,14 +427,11 @@ class _RatingsScreenState extends State<RatingsScreen>
                     fontWeight: FontWeight.bold, fontSize: 15)),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(r.consumerName,
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600, fontSize: 14)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14)),
             Text(dateStr,
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: Colors.grey[400])),
+                style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[400])),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -436,11 +471,9 @@ class _RatingsScreenState extends State<RatingsScreen>
       const Text('⭐', style: TextStyle(fontSize: 50)),
       const SizedBox(height: 12),
       Text('No reviews yet',
-          style: GoogleFonts.poppins(
-              fontSize: 16, fontWeight: FontWeight.bold)),
+          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold)),
       Text('Be the first to review this farmer!',
-          style: GoogleFonts.poppins(
-              color: Colors.grey[500], fontSize: 13)),
+          style: GoogleFonts.poppins(color: Colors.grey[500], fontSize: 13)),
     ]),
   );
 
@@ -459,7 +492,6 @@ class _RatingsScreenState extends State<RatingsScreen>
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
       backgroundColor: const Color(0xFFF5F9F0),
-      // ── "Add Review" sticky bottom button ──────────────────────
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -518,9 +550,7 @@ class _RatingsScreenState extends State<RatingsScreen>
                   child: Row(children: [
                     const Text('⭐', style: TextStyle(fontSize: 28)),
                     const SizedBox(width: 12),
-                    Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(
                         '${_myRatings.length} review${_myRatings.length == 1 ? '' : 's'} submitted',
                         style: GoogleFonts.poppins(
@@ -549,14 +579,11 @@ class _RatingsScreenState extends State<RatingsScreen>
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: Colors.green[100],
-          child: Text(
-            r.farmerName.isNotEmpty ? r.farmerName[0].toUpperCase() : '🌾',
-            style: GoogleFonts.poppins(
-                color: Colors.green[800], fontWeight: FontWeight.bold),
-          ),
+        // Farmer avatar with photo
+        FarmerAvatar(
+          farmerId:   null, // We don't have farmerId in Rating model here
+          farmerName: r.farmerName,
+          radius:     20,
         ),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -588,14 +615,13 @@ class _RatingsScreenState extends State<RatingsScreen>
       ],
       const SizedBox(height: 8),
       Text(
-        r.createdAt.length >= 10
-            ? r.createdAt.substring(0, 10) : r.createdAt,
+        r.createdAt.length >= 10 ? r.createdAt.substring(0, 10) : r.createdAt,
         style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[400]),
       ),
     ]),
   );
 
-  // ── Error view ─────────────────────────────────────────────────────
+  // ── Error view ──────────────────────────────────────────────────────
   Widget _errorView() => Scaffold(
     appBar: AppBar(
       title: Text(_title,
@@ -609,14 +635,12 @@ class _RatingsScreenState extends State<RatingsScreen>
       const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
       const SizedBox(height: 12),
       Text('Could not load reviews',
-          style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold, fontSize: 16)),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16)),
       const SizedBox(height: 6),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Text(_error,
-            style: GoogleFonts.poppins(
-                fontSize: 12, color: Colors.grey),
+            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
             textAlign: TextAlign.center),
       ),
       const SizedBox(height: 20),

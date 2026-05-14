@@ -971,9 +971,11 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen>
                 source: source, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
             if (picked != null) setS(() => imageFile = File(picked.path));
           } catch (e) {
-            if (ctx.mounted) ScaffoldMessenger.of(context).showSnackBar(
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Could not pick image: $e'),
                     backgroundColor: Colors.red[700]));
+            }
           }
         }
 
@@ -1040,7 +1042,7 @@ class _FarmerDashboardScreenState extends State<FarmerDashboardScreen>
             _field(unitCtrl, 'Unit (e.g. kg, bunch)', Icons.straighten_outlined),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: category,
+              initialValue: category,
               isExpanded: true,
               decoration: InputDecoration(
                 labelText: 'Category',

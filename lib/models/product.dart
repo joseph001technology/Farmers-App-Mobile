@@ -11,6 +11,7 @@ class Product {
   final int? farmerId;
   final String? farmerPhone;
   final String? farmerLocation;
+  final String? farmerPhoto;   // ← NEW: farmer's profile photo URL
   final int? stock;
   final double? averageRating;
   final int? ratingCount;
@@ -46,6 +47,7 @@ class Product {
     this.farmerId,
     this.farmerPhone,
     this.farmerLocation,
+    this.farmerPhoto,            // ← NEW
     this.stock,
     this.averageRating,
     this.ratingCount,
@@ -53,10 +55,10 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     // ── Farmer field ─────────────────────────────────────────────────
-    // Serializer returns: "jose (254742906228)"
     int? farmerId;
     String? farmerName;
     String? farmerPhone;
+    String? farmerPhoto;         // ← NEW
 
     final rawFarmer = json['farmer'];
     if (rawFarmer is int) {
@@ -65,12 +67,18 @@ class Product {
       farmerId    = rawFarmer['id'];
       farmerName  = rawFarmer['username'] ?? rawFarmer['name'];
       farmerPhone = rawFarmer['phone'] ?? rawFarmer['phone_number'];
+      // Profile photo nested inside farmer object
+      final profile = rawFarmer['profile'];
+      if (profile is Map) {
+        farmerPhoto = profile['profile_photo']?.toString();
+      }
+      farmerPhoto ??= rawFarmer['profile_photo']?.toString()
+                   ?? rawFarmer['farmer_photo']?.toString();
     } else if (rawFarmer is String) {
       final asInt = int.tryParse(rawFarmer);
       if (asInt != null) {
         farmerId = asInt;
       } else {
-        // "name (phone)" pattern
         final m = RegExp(r'^(.*?)\s*\((\d+)\)\s*$').firstMatch(rawFarmer);
         if (m != null) {
           farmerName  = m.group(1)?.trim();
@@ -81,14 +89,26 @@ class Product {
       }
     }
 
-    // Explicit farmer_name / farmer_username fields take priority
+    // Explicit top-level farmer fields take priority
     final explName = json['farmer_name'] ?? json['farmer_username'];
     if (explName != null && explName.toString().isNotEmpty) {
       farmerName = explName.toString();
     }
+    // Top-level farmer_id overrides anything parsed from nested farmer object
+    final explId = json['farmer_id'];
+    if (explId != null) {
+      farmerId = (explId is num) ? explId.toInt() : int.tryParse(explId.toString());
+    }
     final explPhone = json['farmer_phone'];
     if (explPhone != null && explPhone.toString().isNotEmpty) {
       farmerPhone = explPhone.toString();
+    }
+    // Farmer photo — check top-level fields too
+    final explPhoto = json['farmer_photo']
+        ?? json['farmer_profile_photo']
+        ?? json['farmer_image'];
+    if (explPhoto != null && explPhoto.toString().isNotEmpty) {
+      farmerPhoto = explPhoto.toString();
     }
 
     // ── Stock ────────────────────────────────────────────────────────
@@ -114,40 +134,41 @@ class Product {
     }
 
     return Product(
-      id:            json['id'] ?? 0,
-      name:          json['name']?.toString() ?? '',
-      price:         double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
-      description:   json['description']?.toString() ?? '',
-      // image_url (absolute) must come before image (relative path)
-      imageUrl:      json['image_url'] ?? json['image'] ?? json['imageUrl'],
-      unit:          json['unit']?.toString(),
-      category:      json['category']?.toString(),
-      harvestDate:   json['harvest_date']?.toString(),
-      farmerName:    farmerName,
-      farmerId:      farmerId,
-      farmerPhone:   farmerPhone,
+      id:             json['id'] ?? 0,
+      name:           json['name']?.toString() ?? '',
+      price:          double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
+      description:    json['description']?.toString() ?? '',
+      imageUrl:       json['image_url'] ?? json['image'] ?? json['imageUrl'],
+      unit:           json['unit']?.toString(),
+      category:       json['category']?.toString(),
+      harvestDate:    json['harvest_date']?.toString(),
+      farmerName:     farmerName,
+      farmerId:       farmerId,
+      farmerPhone:    farmerPhone,
       farmerLocation: json['farmer_location']?.toString(),
-      stock:         stock,
-      averageRating: avgRating,
-      ratingCount:   ratingCount,
+      farmerPhoto:    farmerPhoto,   // ← NEW
+      stock:          stock,
+      averageRating:  avgRating,
+      ratingCount:    ratingCount,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id':             id,
-    'name':           name,
-    'price':          price,
-    'description':    description,
-    'image_url':      imageUrl,
-    'unit':           unit,
-    'category':       category,
-    'harvest_date':   harvestDate,
-    'farmer_name':    farmerName,
-    'farmer_id':      farmerId,
-    'farmer_phone':   farmerPhone,
+    'id':              id,
+    'name':            name,
+    'price':           price,
+    'description':     description,
+    'image_url':       imageUrl,
+    'unit':            unit,
+    'category':        category,
+    'harvest_date':    harvestDate,
+    'farmer_name':     farmerName,
+    'farmer_id':       farmerId,
+    'farmer_phone':    farmerPhone,
     'farmer_location': farmerLocation,
-    'quantity':       stock,
-    'average_rating': averageRating,
-    'rating_count':   ratingCount,
+    'farmer_photo':    farmerPhoto,  // ← NEW
+    'quantity':        stock,
+    'average_rating':  averageRating,
+    'rating_count':    ratingCount,
   };
 }
