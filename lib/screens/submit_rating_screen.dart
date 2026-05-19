@@ -40,30 +40,36 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   bool                       _loadingFarmers = false;
   Map<String, dynamic>?      _pickedFarmer;
 
-  // Profile photo URLs
   String? _farmerPhotoUrl;
 
   static const _labels = [
     '', 'Poor 😞', 'Fair 😐', 'Good 🙂', 'Great 😄', 'Excellent 🌟'
   ];
 
-  bool get _isModeA          => widget.order != null;
-  bool get _hasFarmerPreset  => widget.preselectedFarmerId != null;
+  // Mode A: launched with a full Order object (from OrderDetailScreen)
+  bool get _isModeA => widget.order != null;
+
+  // Mode B: launched with preselected farmer but no order
+  bool get _hasFarmerPreset => widget.preselectedFarmerId != null;
 
   @override
   void initState() {
     super.initState();
+
     if (_isModeA) {
+      // ── Mode A: auto-select everything from the order ────────────
+      _selectedOrderId    = widget.order!.id;
       _selectedFarmerId   = _resolveFarmerIdFromOrder();
       _selectedFarmerName = _resolveFarmerNameFromOrder();
-      _selectedOrderId    = widget.order!.id;
     } else {
+      // ── Mode B/C ─────────────────────────────────────────────────
       _selectedFarmerId   = widget.preselectedFarmerId;
       _selectedFarmerName = widget.preselectedFarmerName;
+      // Only load orders list when not in Mode A
       _loadDeliveredOrders();
       if (!_hasFarmerPreset) _loadFarmers();
     }
-    // Load profile photo if we have a farmer ID
+
     if (_selectedFarmerId != null) _loadFarmerPhoto(_selectedFarmerId!);
   }
 
@@ -83,18 +89,15 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
   }
 
   int? _resolveFarmerIdFromOrder() {
-    try {
-      final id = (widget.order! as dynamic).farmerId;
-      if (id != null) return id as int;
-    } catch (_) {}
+    // Try the typed farmerId field on Order
+    final id = widget.order?.farmerId;
+    if (id != null && id > 0) return id;
     return null;
   }
 
   String _resolveFarmerNameFromOrder() {
-    try {
-      final n = (widget.order! as dynamic).farmerName as String?;
-      if (n != null && n.isNotEmpty) return n;
-    } catch (_) {}
+    final n = widget.order?.farmerName;
+    if (n != null && n.isNotEmpty) return n;
     return 'Farmer';
   }
 
@@ -107,15 +110,17 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       _selectedFarmerId ??
       (_pickedFarmer?['id'] as num?)?.toInt();
 
+  /// Load only DELIVERED orders — fix 2
   Future<void> _loadDeliveredOrders() async {
     setState(() { _loadingOrders = true; _ordersError = ''; });
     try {
       final res = await ApiHelper.get('/orders/');
       if (res.statusCode == 200) {
         final List raw = jsonDecode(res.body) as List;
+        // ── Only delivered orders ─────────────────────────────────
         final delivered = raw
             .cast<Map<String, dynamic>>()
-            .where((o) => o['status'] == 'delivered' || o['status'] == 'paid')
+            .where((o) => o['status'] == 'delivered')
             .toList();
         setState(() { _deliveredOrders = delivered; _loadingOrders = false; });
       } else {
@@ -214,6 +219,10 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F9F0),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text('Rate a Farmer',
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         centerTitle: true,
@@ -227,16 +236,19 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           _farmerCard(),
           const SizedBox(height: 16),
 
+          // Mode C: no farmer preset — show farmer picker
           if (!_isModeA && !_hasFarmerPreset) ...[
             _farmerPickerCard(),
             const SizedBox(height: 16),
           ],
 
+          // Mode B/C: show order picker (not needed in Mode A — auto-selected)
           if (!_isModeA) ...[
             _orderPickerCard(),
             const SizedBox(height: 16),
           ],
 
+          // Mode A: show order summary (read-only confirmation)
           if (_isModeA) ...[
             _orderSummaryCard(),
             const SizedBox(height: 16),
@@ -257,17 +269,16 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
-  // ── Farmer profile card ──────────────────────────────────────────────
+  // ── Farmer profile card ──────────────────────────────────────────
   Widget _farmerCard() {
-    final name      = _farmerName;
-    final photoUrl  = _farmerPhotoUrl;
+    final name     = _farmerName;
+    final photoUrl = _farmerPhotoUrl;
 
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.green[800]!, Colors.teal[600]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(
@@ -283,33 +294,30 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
               style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
         ]),
         const SizedBox(height: 14),
-        // Profile photo
         photoUrl != null && photoUrl.isNotEmpty
             ? CircleAvatar(
                 radius: 44,
                 backgroundImage: NetworkImage(photoUrl),
                 backgroundColor: Colors.white.withOpacity(0.2),
-                onBackgroundImageError: (_, _) {},
-              )
+                onBackgroundImageError: (_, _) {})
             : FarmerAvatar(
                 farmerId:        _farmerId,
                 farmerName:      name,
                 radius:          44,
                 backgroundColor: Colors.white.withOpacity(0.2),
-                textColor:       Colors.white,
-              ),
+                textColor:       Colors.white),
         const SizedBox(height: 12),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(name,
               style: GoogleFonts.poppins(
-                  fontSize: 20, color: Colors.white,
-                  fontWeight: FontWeight.bold)),
+                  fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(width: 6),
           const Icon(Icons.verified, color: Colors.greenAccent, size: 18),
         ]),
         const SizedBox(height: 4),
         Text('🇰🇪 Nairobi, Kenya',
             style: GoogleFonts.poppins(fontSize: 12, color: Colors.white70)),
+        // Mode A: show order badge
         if (_isModeA) ...[
           const SizedBox(height: 12),
           Container(
@@ -319,10 +327,9 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              'Order #${widget.order!.id}  •  ${_statusLabel(widget.order!.status)}',
+              'Order #${widget.order!.id}  •  ✅ Delivered',
               style: GoogleFonts.poppins(
-                  color: Colors.white, fontSize: 12,
-                  fontWeight: FontWeight.w500),
+                  color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -330,15 +337,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
-  String _statusLabel(String s) {
-    switch (s) {
-      case 'delivered': return '✅ Delivered';
-      case 'paid':      return '💳 Paid';
-      default:          return s;
-    }
-  }
-
-  // ── Farmer picker (Mode C) ───────────────────────────────────────────
+  // ── Farmer picker (Mode C only) ──────────────────────────────────
   Widget _farmerPickerCard() {
     if (_loadingFarmers) return _loadingCard('Loading farmers…');
     if (_farmers.isEmpty) {
@@ -359,13 +358,12 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
             style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
         const SizedBox(height: 12),
         DropdownButtonFormField<Map<String, dynamic>>(
-          initialValue: _pickedFarmer,
+          value: _pickedFarmer,
           hint: Text('Choose a farmer',
               style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[500])),
           isExpanded: true,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.grey[50],
+            filled: true, fillColor: Colors.grey[50],
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
@@ -387,13 +385,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                         radius: 14,
                         backgroundImage: NetworkImage(fPhoto),
                         backgroundColor: Colors.green[100],
-                        onBackgroundImageError: (_, _) {},
-                      )
-                    : FarmerAvatar(
-                        farmerId:   fId,
-                        farmerName: label,
-                        radius:     14,
-                      ),
+                        onBackgroundImageError: (_, _) {})
+                    : FarmerAvatar(farmerId: fId, farmerName: label, radius: 14),
                 const SizedBox(width: 10),
                 Text(label, style: GoogleFonts.poppins(fontSize: 13)),
               ]),
@@ -414,7 +407,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
-  // ── Order picker (Mode B/C) ──────────────────────────────────────────
+  // ── Order picker (Mode B/C — only delivered orders) ──────────────
   Widget _orderPickerCard() {
     if (_loadingOrders) return _loadingCard('Loading your orders…');
     if (_ordersError.isNotEmpty) {
@@ -436,17 +429,16 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
         Text('Select Order',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green[800])),
-        Text('Which order are you rating?',
+        Text('Which delivered order are you rating?',
             style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
         const SizedBox(height: 12),
         DropdownButtonFormField<int>(
-          initialValue: _selectedOrderId,
+          value: _selectedOrderId,
           hint: Text('Choose an order',
               style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[500])),
           isExpanded: true,
           decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.grey[50],
+            filled: true, fillColor: Colors.grey[50],
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
@@ -457,14 +449,12 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
             prefixIcon: const Icon(Icons.receipt_outlined),
           ),
           items: _deliveredOrders.map((o) {
-            final id     = (o['id'] as num).toInt();
-            final status = o['status']?.toString() ?? '';
-            final total  = double.tryParse(
-                    o['total_price']?.toString() ?? '0') ?? 0.0;
+            final id    = (o['id'] as num).toInt();
+            final total = double.tryParse(o['total_price']?.toString() ?? '0') ?? 0.0;
             return DropdownMenuItem(
               value: id,
               child: Text(
-                'Order #$id  •  KSh ${total.toStringAsFixed(0)}  •  $status',
+                'Order #$id  •  KSh ${total.toStringAsFixed(0)}  •  ✅ Delivered',
                 style: GoogleFonts.poppins(fontSize: 12),
               ),
             );
@@ -475,7 +465,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
-  // ── Mode A: order items summary ──────────────────────────────────────
+  // ── Mode A: read-only order summary ──────────────────────────────
   Widget _orderSummaryCard() {
     final items = widget.order?.orderItems ?? [];
     if (items.isEmpty) return const SizedBox.shrink();
@@ -502,7 +492,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     );
   }
 
-  // ── Rating form ──────────────────────────────────────────────────────
+  // ── Rating form ──────────────────────────────────────────────────
   Widget _ratingForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -517,8 +507,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('How was your experience?',
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold, fontSize: 16,
-                color: Colors.green[800])),
+                fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green[800])),
         Text('with $_farmerName',
             style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
         const SizedBox(height: 20),
@@ -539,9 +528,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
                       star <= _selectedStars
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
-                      color: star <= _selectedStars
-                          ? Colors.amber
-                          : Colors.grey[300],
+                      color: star <= _selectedStars ? Colors.amber : Colors.grey[300],
                       size: 42,
                     ),
                   ),
@@ -555,9 +542,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(_labels[_selectedStars],
                 style: GoogleFonts.poppins(
-                    color: Colors.amber[700],
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14)),
+                    color: Colors.amber[700], fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ),
 
@@ -574,8 +559,7 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
           decoration: InputDecoration(
             hintText: 'Share your experience with this farmer…',
             hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[400]),
-            filled: true,
-            fillColor: Colors.grey[50],
+            filled: true, fillColor: Colors.grey[50],
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[200]!)),
@@ -593,15 +577,12 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
         const SizedBox(height: 16),
 
         SizedBox(
-          width: double.infinity,
-          height: 52,
+          width: double.infinity, height: 52,
           child: ElevatedButton.icon(
             onPressed: _isSubmitting ? null : _submit,
             icon: _isSubmitting
-                ? const SizedBox(
-                    width: 18, height: 18,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
+                ? const SizedBox(width: 18, height: 18,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                 : const Icon(Icons.send_rounded),
             label: Text(
               _isSubmitting ? 'Submitting…' : 'Submit Review',
@@ -631,9 +612,8 @@ class _SubmitRatingScreenState extends State<SubmitRatingScreen> {
     padding: const EdgeInsets.all(20),
     decoration: _cardDecor(),
     child: Row(children: [
-      const SizedBox(
-        width: 20, height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green)),
+      const SizedBox(width: 20, height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green)),
       const SizedBox(width: 14),
       Text(msg, style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600])),
     ]),

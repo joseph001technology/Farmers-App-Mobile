@@ -10,10 +10,16 @@ import 'screens/profile_screen.dart';
 import 'screens/orders_screen.dart';
 import 'services/auth_service.dart';
 import 'services/api_service.dart';
+import 'helpers/api_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AuthService.loadSavedData();
+
+  // Share one navigator key across both ApiService and ApiHelper
+  // so either can redirect to login on 401
+  ApiHelper.navigatorKey = ApiService.navigatorKey;
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => CartProvider(),
@@ -41,6 +47,11 @@ class MyFarmApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Colors.green),
         ),
       ),
+      // Named routes — used by ApiHelper._handle401
+      routes: {
+        '/login': (_) => const LoginScreen(),
+        '/home':  (_) => const MainFarmScreen(),
+      },
       home: AuthService.isLoggedIn()
           ? const MainFarmScreen()
           : const LoginScreen(),
@@ -77,12 +88,11 @@ class _MainFarmScreenState extends State<MainFarmScreen> {
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart), label: 'Cart'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Orders'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Me'),
+          BottomNavigationBarItem(icon: Icon(Icons.home),           label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.store),          label: 'Shop'),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart),  label: 'Cart'),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt),        label: 'Orders'),
+          BottomNavigationBarItem(icon: Icon(Icons.person),         label: 'Me'),
         ],
       ),
     );

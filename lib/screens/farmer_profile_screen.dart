@@ -50,12 +50,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
   }
 
   Future<void> _loadAll() async {
-    // Load in parallel
-    await Future.wait([
-      _loadProfile(),
-      _loadRatings(),
-      _loadProducts(),
-    ]);
+    await Future.wait([_loadProfile(), _loadRatings(), _loadProducts()]);
   }
 
   Future<void> _loadProfile() async {
@@ -79,28 +74,21 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
   Future<void> _loadProducts() async {
     try {
       final all = await ProductService.getProducts();
-      final mine = all
-          .where((p) => p.farmerId == widget.farmerId)
-          .toList();
+      final mine = all.where((p) => p.farmerId == widget.farmerId).toList();
       if (mounted) setState(() { _products = mine; _loadingProducts = false; });
     } catch (_) {
       if (mounted) setState(() => _loadingProducts = false);
     }
   }
 
-  String get _displayName =>
-      _profile?.username ?? widget.farmerName;
-
+  String get _displayName => _profile?.username ?? widget.farmerName;
   String get _location =>
-      _profile?.location ??
-      widget.farmerLocation ??
-      'Nairobi, Kenya';
-
+      _profile?.location ?? widget.farmerLocation ?? 'Nairobi, Kenya';
   String? get _photoUrl => _profile?.profilePhoto;
 
   @override
   Widget build(BuildContext context) {
-    final avgRating  = _ratings?.averageRating ?? 0.0;
+    final avgRating    = _ratings?.averageRating ?? 0.0;
     final totalReviews = _ratings?.totalRatings ?? 0;
 
     return Scaffold(
@@ -125,13 +113,11 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
               },
               icon: const Icon(Icons.rate_review_rounded),
               label: Text('Rate this Farmer',
-                  style: GoogleFonts.poppins(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
+                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green[700],
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ),
@@ -139,9 +125,10 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
       ),
       body: CustomScrollView(
         slivers: [
-          // ── Hero header ─────────────────────────────────────────
+          // ── Hero header ───────────────────────────────────────
           SliverAppBar(
-            expandedHeight: 300,
+            // Increased from 300 → 360 to give the TabBar room below the stars
+            expandedHeight: 360,
             pinned: true,
             backgroundColor: Colors.green[800],
             foregroundColor: Colors.white,
@@ -169,14 +156,13 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                     ),
                   ),
                 ),
-                // Decorative circles
                 Positioned(top: -40, right: -40,
                     child: _circle(180, Colors.white.withOpacity(0.05))),
                 Positioned(bottom: -20, left: -30,
                     child: _circle(140, Colors.white.withOpacity(0.05))),
-                // Content
+                // ── Content — extra bottom padding keeps it above the TabBar ──
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 70, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 70, 20, 60),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -187,15 +173,13 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                               radius: 44,
                               backgroundColor: Colors.white.withOpacity(0.2),
                               child: const CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2),
-                            )
+                                  color: Colors.white, strokeWidth: 2))
                           : _photoUrl != null && _photoUrl!.isNotEmpty
                               ? CircleAvatar(
                                   radius: 44,
                                   backgroundImage: NetworkImage(_photoUrl!),
                                   backgroundColor: Colors.white.withOpacity(0.2),
-                                  onBackgroundImageError: (_, _) {},
-                                )
+                                  onBackgroundImageError: (_, _) {})
                               : CircleAvatar(
                                   radius: 44,
                                   backgroundColor: Colors.white.withOpacity(0.2),
@@ -206,35 +190,33 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                                     style: GoogleFonts.poppins(
                                         fontSize: 36, color: Colors.white,
                                         fontWeight: FontWeight.bold),
-                                  ),
-                                ),
+                                  )),
                       const SizedBox(height: 12),
                       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text(_displayName,
-                            style: GoogleFonts.poppins(
-                                fontSize: 22, fontWeight: FontWeight.bold,
-                                color: Colors.white)),
+                        Flexible(
+                          child: Text(_displayName,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 22, fontWeight: FontWeight.bold,
+                                  color: Colors.white),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
                         const SizedBox(width: 6),
-                        const Icon(Icons.verified,
-                            color: Colors.greenAccent, size: 18),
+                        const Icon(Icons.verified, color: Colors.greenAccent, size: 18),
                       ]),
                       const SizedBox(height: 4),
                       Text('📍 $_location',
-                          style: GoogleFonts.poppins(
-                              fontSize: 12, color: Colors.white70)),
-                      if (_profile?.bio != null &&
-                          _profile!.bio!.isNotEmpty) ...[
+                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.white70)),
+                      if (_profile?.bio != null && _profile!.bio!.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Text(_profile!.bio!,
                             style: GoogleFonts.poppins(
                                 fontSize: 12, color: Colors.white60,
                                 fontStyle: FontStyle.italic),
                             textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
                       ],
                       const SizedBox(height: 10),
-                      // Stars
+                      // Stars row
                       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         ...List.generate(5, (i) => Icon(
                           i < avgRating.floor()
@@ -245,12 +227,14 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                           color: Colors.amber, size: 20,
                         )),
                         const SizedBox(width: 6),
-                        Text(
-                          totalReviews == 0
-                              ? 'No reviews yet'
-                              : '${avgRating.toStringAsFixed(1)} ($totalReviews reviews)',
-                          style: GoogleFonts.poppins(
-                              fontSize: 13, color: Colors.white70),
+                        Flexible(
+                          child: Text(
+                            totalReviews == 0
+                                ? 'No reviews yet'
+                                : '${avgRating.toStringAsFixed(1)} ($totalReviews reviews)',
+                            style: GoogleFonts.poppins(fontSize: 13, color: Colors.white70),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ]),
                     ],
@@ -263,8 +247,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white54,
               indicatorColor: Colors.greenAccent,
-              labelStyle: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600, fontSize: 13),
+              labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
               tabs: const [
                 Tab(icon: Icon(Icons.store_outlined), text: 'Products'),
                 Tab(icon: Icon(Icons.star_outline_rounded), text: 'Reviews'),
@@ -272,7 +255,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
             ),
           ),
 
-          // ── Stats strip ─────────────────────────────────────────
+          // ── Stats strip ───────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -290,14 +273,11 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
             ),
           ),
 
-          // ── Tab content ─────────────────────────────────────────
+          // ── Tab content ───────────────────────────────────────
           SliverFillRemaining(
             child: TabBarView(
               controller: _tabs,
-              children: [
-                _productsTab(),
-                _reviewsTab(),
-              ],
+              children: [_productsTab(), _reviewsTab()],
             ),
           ),
         ],
@@ -305,30 +285,23 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     );
   }
 
-  // ── Products tab ──────────────────────────────────────────────────
+  // ── Products tab ────────────────────────────────────────────────
   Widget _productsTab() {
     if (_loadingProducts) {
-      return const Center(
-          child: CircularProgressIndicator(color: Colors.green));
+      return const Center(child: CircularProgressIndicator(color: Colors.green));
     }
     if (_products.isEmpty) {
-      return Center(child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('🥬', style: TextStyle(fontSize: 48)),
-          const SizedBox(height: 12),
-          Text('No products listed yet',
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600, fontSize: 16)),
-        ],
-      ));
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Text('🥬', style: TextStyle(fontSize: 48)),
+        const SizedBox(height: 12),
+        Text('No products listed yet',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16)),
+      ]));
     }
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12,
         childAspectRatio: 0.75,
       ),
       itemCount: _products.length,
@@ -342,41 +315,34 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
           MaterialPageRoute(builder: (_) => ProductDetailScreen(product: p))),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+          color: Colors.white, borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
               blurRadius: 8, offset: const Offset(0, 3))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: p.imageUrl != null && p.imageUrl!.isNotEmpty
-                ? Image.network(p.imageUrl!,
-                    height: 110, width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => _imgPlaceholder())
+                ? Image.network(p.imageUrl!, height: 110, width: double.infinity,
+                    fit: BoxFit.cover, errorBuilder: (c, e, s) => _imgPlaceholder())
                 : _imgPlaceholder(),
           ),
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(p.name,
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600, fontSize: 13),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
               Text('KSh ${p.price.toStringAsFixed(0)}',
                   style: GoogleFonts.poppins(
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.bold, fontSize: 13)),
+                      color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 13)),
               if (p.averageRating != null && p.averageRating! > 0)
                 Row(children: [
                   Icon(Icons.star_rounded, color: Colors.amber, size: 12),
                   const SizedBox(width: 3),
                   Text(p.averageRating!.toStringAsFixed(1),
-                      style: GoogleFonts.poppins(
-                          fontSize: 10, color: Colors.grey[600])),
+                      style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[600])),
                 ]),
             ]),
           ),
@@ -387,30 +353,23 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
 
   Widget _imgPlaceholder() => Container(
     height: 110, color: Colors.green[50],
-    child: const Center(child: Icon(Icons.grass, color: Colors.green, size: 32)),
-  );
+    child: const Center(child: Icon(Icons.grass, color: Colors.green, size: 32)));
 
-  // ── Reviews tab ───────────────────────────────────────────────────
+  // ── Reviews tab ─────────────────────────────────────────────────
   Widget _reviewsTab() {
     if (_loadingRatings) {
-      return const Center(
-          child: CircularProgressIndicator(color: Colors.green));
+      return const Center(child: CircularProgressIndicator(color: Colors.green));
     }
     final ratings = _ratings?.ratings ?? [];
     if (ratings.isEmpty) {
-      return Center(child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('⭐', style: TextStyle(fontSize: 48)),
-          const SizedBox(height: 12),
-          Text('No reviews yet',
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600, fontSize: 16)),
-          Text('Be the first to review!',
-              style: GoogleFonts.poppins(
-                  color: Colors.grey[500], fontSize: 13)),
-        ],
-      ));
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Text('⭐', style: TextStyle(fontSize: 48)),
+        const SizedBox(height: 12),
+        Text('No reviews yet',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16)),
+        Text('Be the first to review!',
+            style: GoogleFonts.poppins(color: Colors.grey[500], fontSize: 13)),
+      ]));
     }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
@@ -420,40 +379,30 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
   }
 
   Widget _reviewCard(Rating r) {
-    final initials = r.consumerName.isNotEmpty
-        ? r.consumerName[0].toUpperCase() : '?';
-    final dateStr = r.createdAt.length >= 10
-        ? r.createdAt.substring(0, 10) : r.createdAt;
+    final initials = r.consumerName.isNotEmpty ? r.consumerName[0].toUpperCase() : '?';
+    final dateStr  = r.createdAt.length >= 10 ? r.createdAt.substring(0, 10) : r.createdAt;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+        color: Colors.white, borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
             blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.teal[100],
-            child: Text(initials,
-                style: GoogleFonts.poppins(
-                    color: Colors.teal[800],
-                    fontWeight: FontWeight.bold, fontSize: 15)),
+            radius: 20, backgroundColor: Colors.teal[100],
+            child: Text(initials, style: GoogleFonts.poppins(
+                color: Colors.teal[800], fontWeight: FontWeight.bold, fontSize: 15)),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(r.consumerName,
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600, fontSize: 13)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
             Text(dateStr,
-                style: GoogleFonts.poppins(
-                    fontSize: 10, color: Colors.grey[400])),
+                style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[400])),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -463,10 +412,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
               border: Border.all(color: Colors.amber[200]!),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('${r.stars}',
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13, color: Colors.amber[800])),
+              Text('${r.stars}', style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold, fontSize: 13, color: Colors.amber[800])),
               const SizedBox(width: 3),
               Icon(Icons.star_rounded, color: Colors.amber[700], size: 14),
             ]),
@@ -474,42 +421,33 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
         ]),
         if (r.review != null && r.review!.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(r.review!,
-              style: GoogleFonts.poppins(
-                  fontSize: 13, color: Colors.grey[700], height: 1.5)),
+          Text(r.review!, style: GoogleFonts.poppins(
+              fontSize: 13, color: Colors.grey[700], height: 1.5)),
         ],
       ]),
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────
   Widget _statChip(String emoji, String value, String label) => Expanded(
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
             blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(children: [
         Text(emoji, style: const TextStyle(fontSize: 18)),
         const SizedBox(height: 4),
-        Text(value,
-            style: GoogleFonts.poppins(
-                fontSize: 14, fontWeight: FontWeight.bold,
-                color: Colors.green[800])),
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 9, color: Colors.grey[500]),
+        Text(value, style: GoogleFonts.poppins(
+            fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green[800])),
+        Text(label, style: GoogleFonts.poppins(fontSize: 9, color: Colors.grey[500]),
             textAlign: TextAlign.center),
       ]),
-    ),
-  );
+    ));
 
   Widget _circle(double size, Color color) => Container(
     width: size, height: size,
-    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-  );
+    decoration: BoxDecoration(shape: BoxShape.circle, color: color));
 }

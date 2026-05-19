@@ -1,13 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
 import '../services/farmer_service.dart';
+import '../helpers/api_helper.dart';
 import 'submit_rating_screen.dart';
-import 'farmer_profile_screen.dart';
+import 'payment_screen.dart';
 import '../widgets/farmer_avatar.dart';
 import '../helpers/farmer_nav_helper.dart';
 
@@ -23,15 +26,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     with SingleTickerProviderStateMixin {
   Order?         order;
   FarmerProfile? _farmerProfile;
-  bool   isLoading = false;
-  String error     = '';
+  bool   isLoading       = false;
+  bool   _confirmingDelivery = false;
+  String error           = '';
   late TabController _tabController;
+
+  // Tab indices vary by status — computed dynamically
+  int get _tabCount {
+    final s = order?.status ?? '';
+    if (s == 'pending' || s == 'pending_delivery') return 2; // Info | Pay
+    if (s == 'paid')      return 2; // Info | Receipt
+    if (s == 'delivered') return 3; // Info | Receipt | Review
+    return 2; // Info | Receipt (default)
+  }
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     order = widget.order;
+    _tabController = TabController(length: _tabCount, vsync: this);
     if (order!.orderItems.isEmpty) _fetchFullOrder();
     _loadFarmerProfile();
   }
@@ -40,6 +53,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // Rebuild controller when order status changes (e.g. after confirm delivery)
+  void _rebuildTabs() {
+    _tabController.dispose();
+    _tabController = TabController(length: _tabCount, vsync: this);
+    setState(() {});
   }
 
   Future<void> _loadFarmerProfile() async {
@@ -55,13 +75,82 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     setState(() { isLoading = true; error = ''; });
     try {
       final data = await ApiService.get("/orders/${order!.id}/");
-      setState(() {
-        order     = Order.fromJson(data);
-        isLoading = false;
-      });
+      final updated = Order.fromJson(data);
+      final wasStatus = order?.status;
+      setState(() { order = updated; isLoading = false; });
+      if (wasStatus != updated.status) _rebuildTabs();
       _loadFarmerProfile();
     } catch (e) {
       setState(() { error = "Could not load order details"; isLoading = false; });
+    }
+  }
+
+  // ── Confirm delivery ─────────────────────────────────────────────
+  Future<void> _confirmDelivery() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Confirm Delivery?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Mark Order #${order!.id} as delivered? This cannot be undone.',
+          style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[700]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.poppins(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[700], foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            child: Text('Yes, Delivered', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _confirmingDelivery = true);
+    try {
+      final res = await ApiHelper.patch(
+          '/orders/${order!.id}/', {'status': 'delivered'});
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        final updated = Order.fromJson(
+            jsonDecode(res.body) as Map<String, dynamic>);
+        setState(() { order = updated; _confirmingDelivery = false; });
+        _rebuildTabs();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Order marked as delivered ✅',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      } else {
+        setState(() => _confirmingDelivery = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not update status (${res.statusCode})',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+    } catch (e) {
+      setState(() => _confirmingDelivery = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 
@@ -76,32 +165,29 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    pw.Container(
-                      width: 40, height: 40,
-                      decoration: const pw.BoxDecoration(
-                          color: PdfColors.green, shape: pw.BoxShape.circle),
-                      child: pw.Center(
-                        child: pw.Text("A",
-                            style: pw.TextStyle(color: PdfColors.white,
-                                fontWeight: pw.FontWeight.bold, fontSize: 20)),
-                      ),
+                pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+                  pw.Container(
+                    width: 40, height: 40,
+                    decoration: const pw.BoxDecoration(
+                        color: PdfColors.green, shape: pw.BoxShape.circle),
+                    child: pw.Center(
+                      child: pw.Text("A",
+                          style: pw.TextStyle(color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold, fontSize: 20)),
                     ),
-                    pw.SizedBox(width: 15),
-                    pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text("AGRIFLOW",
-                          style: pw.TextStyle(fontSize: 28,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.green800, letterSpacing: 2)),
-                      pw.Text("Official Payment Receipt",
-                          style: pw.TextStyle(fontSize: 12,
-                              color: PdfColors.grey700,
-                              fontStyle: pw.FontStyle.italic)),
-                    ]),
-                  ],
-                ),
+                  ),
+                  pw.SizedBox(width: 15),
+                  pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                    pw.Text("AGRIFLOW",
+                        style: pw.TextStyle(fontSize: 28,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.green800, letterSpacing: 2)),
+                    pw.Text("Official Payment Receipt",
+                        style: pw.TextStyle(fontSize: 12,
+                            color: PdfColors.grey700,
+                            fontStyle: pw.FontStyle.italic)),
+                  ]),
+                ]),
                 pw.SizedBox(height: 15),
                 pw.Divider(thickness: 1, color: PdfColors.grey300),
                 pw.SizedBox(height: 15),
@@ -210,9 +296,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
       return "${dt.day} ${months[dt.month]} ${dt.year}  •  "
           "${dt.hour.toString().padLeft(2, '0')}:"
           "${dt.minute.toString().padLeft(2, '0')}";
-    } catch (_) {
-      return raw;
-    }
+    } catch (_) { return raw; }
   }
 
   void _goToFarmerProfile() {
@@ -223,11 +307,58 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     );
   }
 
+  // ── Dynamic tabs based on status ────────────────────────────────
+  List<Tab> get _tabs {
+    final s = order?.status ?? '';
+    if (s == 'pending' || s == 'pending_delivery') {
+      return [
+        const Tab(icon: Icon(Icons.info_outline_rounded), text: 'Info'),
+        const Tab(icon: Icon(Icons.payment_rounded),      text: 'Pay'),
+      ];
+    }
+    if (s == 'paid') {
+      return [
+        const Tab(icon: Icon(Icons.info_outline_rounded),  text: 'Info'),
+        const Tab(icon: Icon(Icons.receipt_long_rounded),  text: 'Receipt'),
+      ];
+    }
+    if (s == 'delivered') {
+      return [
+        const Tab(icon: Icon(Icons.info_outline_rounded),  text: 'Info'),
+        const Tab(icon: Icon(Icons.receipt_long_rounded),  text: 'Receipt'),
+        const Tab(icon: Icon(Icons.star_rounded),          text: 'Review'),
+      ];
+    }
+    return [
+      const Tab(icon: Icon(Icons.info_outline_rounded), text: 'Info'),
+      const Tab(icon: Icon(Icons.receipt_long_rounded), text: 'Receipt'),
+    ];
+  }
+
+  List<Widget> get _tabViews {
+    final s = order?.status ?? '';
+    if (s == 'pending' || s == 'pending_delivery') {
+      return [_buildDetailsTab(), _buildPayTab()];
+    }
+    if (s == 'paid') {
+      return [_buildDetailsTab(), _buildReceiptTab()];
+    }
+    if (s == 'delivered') {
+      return [_buildDetailsTab(), _buildReceiptTab(), _buildReviewTab()];
+    }
+    return [_buildDetailsTab(), _buildReceiptTab()];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F9F0),
       appBar: AppBar(
+        // ── Back button (fix 5) ──────────────────────────────────
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text("Order Details",
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
@@ -243,10 +374,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
           unselectedLabelColor: Colors.grey,
           indicatorColor: Colors.green[700],
           labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.info_outline_rounded), text: 'Info'),
-            Tab(icon: Icon(Icons.receipt_long_rounded), text: 'Receipt'),
-          ],
+          tabs: _tabs,
         ),
       ),
       body: isLoading
@@ -255,7 +383,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
               ? _buildErrorView()
               : TabBarView(
                   controller: _tabController,
-                  children: [_buildDetailsTab(), _buildReceiptTab()],
+                  children: _tabViews,
                 ),
     );
   }
@@ -277,16 +405,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     ]));
   }
 
+  // ── Info tab ─────────────────────────────────────────────────────
   Widget _buildDetailsTab() {
     final farmerId   = order?.farmerId;
     final farmerName = order?.farmerName ?? 'Local Farmer';
-    final photoUrl = _farmerProfile?.profilePhoto ?? order?.farmerImage;
+    final photoUrl   = _farmerProfile?.profilePhoto ?? order?.farmerImage;
+    final isPaid     = order?.status == 'paid';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-        // ── Farmer profile banner (clickable) ─────────────────────
+        // ── Farmer banner ──────────────────────────────────────────
         if (farmerId != null)
           GestureDetector(
             onTap: _goToFarmerProfile,
@@ -303,34 +433,29 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                     blurRadius: 10, offset: const Offset(0, 4))],
               ),
               child: Row(children: [
-                // Profile photo
                 photoUrl != null && photoUrl.isNotEmpty
                     ? CircleAvatar(
                         radius: 28,
                         backgroundImage: NetworkImage(photoUrl),
                         backgroundColor: Colors.white.withOpacity(0.2),
-                        onBackgroundImageError: (_, _) {},
-                      )
+                        onBackgroundImageError: (_, _) {})
                     : FarmerAvatar(
                         farmerId:        farmerId,
                         farmerName:      farmerName,
                         radius:          28,
                         backgroundColor: Colors.white.withOpacity(0.2),
-                        textColor:       Colors.white,
-                      ),
+                        textColor:       Colors.white),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Text(farmerName,
                         style: GoogleFonts.poppins(
-                            color: Colors.white, fontWeight: FontWeight.bold,
-                            fontSize: 15)),
+                            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                     const SizedBox(width: 5),
                     const Icon(Icons.verified, color: Colors.greenAccent, size: 14),
                   ]),
                   Text('Tap to view farmer profile',
-                      style: GoogleFonts.poppins(
-                          color: Colors.white70, fontSize: 11)),
+                      style: GoogleFonts.poppins(color: Colors.white70, fontSize: 11)),
                 ])),
                 const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 14),
               ]),
@@ -350,15 +475,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text("Order #${order!.id}",
-                  style: GoogleFonts.poppins(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
+                  style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
                   color: _statusColor(order!.status).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: _statusColor(order!.status).withOpacity(0.4)),
+                  border: Border.all(color: _statusColor(order!.status).withOpacity(0.4)),
                 ),
                 child: Text(_statusLabel(order!.status),
                     style: GoogleFonts.poppins(
@@ -385,8 +508,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                         ? '💵 Pay on Delivery' : '📱 M-Pesa')
                     : 'M-Pesa',
                 Colors.blue),
-            if (order!.deliveryAddress != null &&
-                order!.deliveryAddress!.isNotEmpty) ...[
+            if (order!.deliveryAddress != null && order!.deliveryAddress!.isNotEmpty) ...[
               const SizedBox(height: 10),
               _infoRow(Icons.location_on_rounded, "Delivery Address",
                   order!.deliveryAddress!, Colors.red),
@@ -408,6 +530,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                 style: GoogleFonts.poppins(color: Colors.grey[500]))),
           )
         else
+          // ── Item cards with farmer info (fix 1) ──────────────────
           ...order!.orderItems.map((item) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
@@ -418,31 +541,54 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                   color: Colors.black.withOpacity(0.04),
                   blurRadius: 6, offset: const Offset(0, 2))],
             ),
-            child: Row(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: item.productImage != null && item.productImage!.isNotEmpty
-                    ? Image.network(item.productImage!,
-                        width: 56, height: 56, fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => _imgPlaceholder())
-                    : _imgPlaceholder(),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(item.productName,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: item.productImage != null && item.productImage!.isNotEmpty
+                      ? Image.network(item.productImage!,
+                          width: 56, height: 56, fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => _imgPlaceholder())
+                      : _imgPlaceholder(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(item.productName,
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text("Qty: ${item.quantity}  •  KSh ${item.price.toStringAsFixed(0)} each",
+                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
+                ])),
+                Text("KSh ${(item.price * item.quantity).toStringAsFixed(0)}",
                     style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                Text("Qty: ${item.quantity}  •  KSh ${item.price.toStringAsFixed(0)} each",
-                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[500])),
-              ])),
-              Text("KSh ${(item.price * item.quantity).toStringAsFixed(0)}",
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14, color: Colors.green[700])),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14, color: Colors.green[700])),
+              ]),
+              // ── Farmer chip below item ───────────────────────────
+              if (farmerId != null) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _goToFarmerProfile,
+                  child: Row(children: [
+                    FarmerAvatar(
+                        farmerId: farmerId, farmerName: farmerName,
+                        radius: 10),
+                    const SizedBox(width: 6),
+                    Text('by $farmerName',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: Colors.green[700],
+                            fontWeight: FontWeight.w500)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.open_in_new, size: 10, color: Colors.green[400]),
+                  ]),
+                ),
+              ],
             ]),
           )),
 
         const SizedBox(height: 20),
+
+        // ── Order total ────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -465,15 +611,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
 
         const SizedBox(height: 20),
 
-        // Action buttons row
-        Row(children: [
-          // View Farmer Profile
+        // ── Action buttons ─────────────────────────────────────────
+        Column(children: [
+          // Farmer profile button
           if (farmerId != null) ...[
-            Expanded(
+            SizedBox(
+              width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _goToFarmerProfile,
                 icon: const Icon(Icons.person_outline, size: 16),
-                label: Text('Farmer Profile',
+                label: Text('View Farmer Profile',
                     style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600, fontSize: 13)),
                 style: OutlinedButton.styleFrom(
@@ -485,11 +632,39 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(height: 10),
           ],
-          // Rate & Review
+
+          // ── Confirm delivery button (fix 3) — only for paid ──────
+          if (isPaid) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _confirmingDelivery ? null : _confirmDelivery,
+                icon: _confirmingDelivery
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                label: Text(
+                    _confirmingDelivery ? 'Updating…' : 'Confirm Delivery Received',
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14)),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Rate & Review button (fix 4) — only for delivered
           if (order!.isDelivered)
-            Expanded(
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(
                     builder: (_) => SubmitRatingScreen(order: order!))),
@@ -502,7 +677,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14)),
               ),
             ),
         ]),
@@ -512,25 +687,106 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     );
   }
 
+  // ── Pay tab (fix 2) — shown when pending ────────────────────────
+  Widget _buildPayTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(children: [
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: [Colors.orange[700]!, Colors.orange[400]!],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(
+                color: Colors.orange.withOpacity(0.3),
+                blurRadius: 12, offset: const Offset(0, 6))],
+          ),
+          child: Column(children: [
+            const Icon(Icons.payment_rounded, color: Colors.white, size: 48),
+            const SizedBox(height: 12),
+            Text('Payment Required',
+                style: GoogleFonts.poppins(
+                    color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text('Order #${order!.id}',
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+            const SizedBox(height: 12),
+            Text('KSh ${order!.totalPrice.toStringAsFixed(0)}',
+                style: GoogleFonts.poppins(
+                    color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text('Total to pay',
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+          ]),
+        ),
+        const SizedBox(height: 32),
+        if (order?.paymentMethod == 'pod') ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.purple[50],
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.purple[200]!),
+            ),
+            child: Row(children: [
+              Icon(Icons.local_shipping_outlined, color: Colors.purple[700]),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Pay on Delivery',
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold, color: Colors.purple[800])),
+                Text('Your order is confirmed. Pay the delivery agent when goods arrive.',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.purple[700])),
+              ])),
+            ]),
+          ),
+        ] else ...[
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => PaymentScreen(
+                      orderId: order!.id,
+                      totalPrice: order!.totalPrice))),
+              icon: const Icon(Icons.phone_android_rounded),
+              label: Text('Pay via M-Pesa',
+                  style: GoogleFonts.poppins(
+                      fontSize: 16, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[700],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14))),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              Icon(Icons.info_outline, color: Colors.blue[700], size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                'You will receive an M-Pesa prompt. Enter your PIN to complete payment.',
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.blue[800]),
+              )),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ── Receipt tab ──────────────────────────────────────────────────
   Widget _buildReceiptTab() {
-    final canShow = order!.status == 'paid' ||
-        order!.status == 'delivered' ||
-        order!.status == 'pending_delivery';
-
-    if (!canShow) {
-      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.receipt_long_rounded, size: 64, color: Colors.grey[300]),
-        const SizedBox(height: 16),
-        Text('Receipt not available yet',
-            style: GoogleFonts.poppins(
-                fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey[500])),
-        const SizedBox(height: 8),
-        Text('Receipt will appear here once\nyour payment is confirmed.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[400])),
-      ]));
-    }
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
@@ -565,7 +821,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
             _quickRow('Payment Via',
                 order!.paymentMethod == 'pod' ? 'Pay on Delivery' : 'M-Pesa'),
             const SizedBox(height: 8),
-            _quickRow('Current Status', order!.status.toUpperCase()),
+            _quickRow('Status', order!.status.toUpperCase()),
             const SizedBox(height: 20),
             const Divider(thickness: 1, indent: 20, endIndent: 20),
             const SizedBox(height: 16),
@@ -583,8 +839,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
             const SizedBox(height: 12),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text('TOTAL PAID',
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16)),
               Text('KSh ${order!.totalPrice.toStringAsFixed(0)}',
                   style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w900, fontSize: 24,
@@ -604,17 +859,86 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
             onPressed: _printReceipt,
             icon: const Icon(Icons.print_rounded),
             label: Text('Download / Print PDF',
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700, fontSize: 16)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green[700],
                 foregroundColor: Colors.white,
                 elevation: 4,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16))),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
           ),
         ),
         const SizedBox(height: 30),
+      ]),
+    );
+  }
+
+  // ── Review tab (fix 4) — shown when delivered ───────────────────
+  Widget _buildReviewTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(children: [
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: [Colors.amber[700]!, Colors.orange[500]!],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(
+                color: Colors.amber.withOpacity(0.3),
+                blurRadius: 12, offset: const Offset(0, 6))],
+          ),
+          child: Column(children: [
+            const Text('⭐', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            Text('How was your experience?',
+                style: GoogleFonts.poppins(
+                    color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 6),
+            Text('Share your feedback with ${order?.farmerName ?? 'the farmer'}',
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13),
+                textAlign: TextAlign.center),
+          ]),
+        ),
+        const SizedBox(height: 32),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => SubmitRatingScreen(order: order!))),
+            icon: const Icon(Icons.rate_review_rounded, size: 20),
+            label: Text('Write a Review',
+                style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber[700],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14))),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (order?.farmerId != null)
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: _goToFarmerProfile,
+              icon: const Icon(Icons.person_outline),
+              label: Text('View Farmer Profile',
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.teal[700],
+                side: BorderSide(color: Colors.teal[400]!, width: 1.5),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -632,8 +956,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8)),
+              color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, size: 16, color: color),
         ),
         const SizedBox(width: 10),
